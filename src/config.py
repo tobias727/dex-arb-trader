@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-OUTPUT_DIRECTORY = os.path.join(os.getcwd(), "../out")
+OUTPUT_DIRECTORY = os.path.join(os.getcwd(), "out")
 
 ETHERSCAN_API_KEY = os.getenv("ETHERSCAN_API_KEY")
 ALCHEMY_API_KEY = os.getenv("ALCHEMY_API_KEY")

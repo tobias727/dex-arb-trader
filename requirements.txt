@@ -3,3 +3,4 @@ pandas==2.3.0
 ipykernel==6.29.5
 python-binance==1.0.29
 python-dotenv==1.1.1
+websockets==15.0.1
