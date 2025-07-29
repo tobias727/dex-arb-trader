@@ -35,40 +35,80 @@ class UniswapV2Client:
             raise FileNotFoundError("Failed to load ABI for the Uniswap V2 Router.")
         self.router_contract = self.w3.eth.contract(address=self.router_address, abi=router_abi)
 
-    def get_amounts_out(self, token_in: str, token_out: str, amount_in: float, decimals_in: int) -> dict:
+    def get_amounts_out(
+        self,
+        token_in: str,
+        token_out: str,
+        amount_in: float,
+        decimals_in: int,
+        decimals_out: int,
+    ) -> dict:
         """
-        Get the output amounts for a given input token and amount, including both directions
-        (token_in -> token_out and token_out -> token_in).
+        Get the output amounts for a given input token and amount, including both
+        directions (token_in -> token_out and token_out -> token_in), and return
+        both the raw on-chain values and the human-readable values.
 
-        Parameters:
-        - token_in (str): The input token address.
-        - token_out (str): The output token address.
-        - amount_in (float): The input amount (in human-readable format, e.g., 0.01 WETH).
-        - decimals_in (int): The number of decimals of the input token.
+        Parameters
+        ----------
+        token_in : str
+            Address of the input token.
+        token_out : str
+            Address of the output token.
+        amount_in : float
+            Input amount (human-readable, e.g. 0.01 WETH).
+        decimals_in : int
+            Decimals of the input token.
+        decimals_out : int
+            Decimals of the output token.
 
-        Returns:
-        - dict: Contains the output amount for token_in -> token_out and token_out -> token_in.
+        Returns
+        -------
+        dict
+            {
+                "forward_raw":   <int>,   # raw wei amount (token_in → token_out)
+                "forward":       <float>, # human-readable using decimals_out
+                "reverse_raw":   <int>,   # raw wei amount (token_out → token_in)
+                "reverse":       <float>, # human-readable using decimals_in
+            }
         """
         try:
-            amount_in_wei = int(amount_in * (10 ** decimals_in)) # uniswap uses wei
+            # Convert the human-readable input amount to wei
+            amount_in_wei = int(amount_in * (10 ** decimals_in))
 
             # Forward direction: token_in -> token_out
-            amounts_out = self.router_contract.functions.getAmountsOut(
-                amount_in_wei, [Web3.to_checksum_address(token_in), Web3.to_checksum_address(token_out)]
-            ).call()
-            output_amount_forward = amounts_out[-1]
+            forward_raw = self.router_contract.functions.getAmountsOut(
+                amount_in_wei,
+                [
+                    Web3.to_checksum_address(token_in),
+                    Web3.to_checksum_address(token_out),
+                ],
+            ).call()[-1]
 
             # Reverse direction: token_out -> token_in
-            amount_out_wei_reverse = self.router_contract.functions.getAmountsOut(
-                amount_in_wei, [Web3.to_checksum_address(token_out), Web3.to_checksum_address(token_in)]
-            ).call()
-            output_amount_reverse = amount_out_wei_reverse[-1]
+            reverse_raw = self.router_contract.functions.getAmountsOut(
+                amount_in_wei,
+                [
+                    Web3.to_checksum_address(token_out),
+                    Web3.to_checksum_address(token_in),
+                ],
+            ).call()[-1]
+
+            # Convert raw values to human-readable amounts
+            forward_human = forward_raw / (10 ** decimals_out)
+            reverse_human = reverse_raw / (10 ** decimals_in)
 
             return {
-                "forward": output_amount_forward,
-                "reverse": output_amount_reverse,
+                "forward_raw": forward_raw,
+                "forward": forward_human,
+                "reverse_raw": reverse_raw,
+                "reverse": reverse_human,
             }
 
         except Exception as e:
             print(f"Error fetching amounts out: {e}")
-            return {"forward": None, "reverse": None}
+            return {
+                "forward_raw": None,
+                "forward": None,
+                "reverse_raw": None,
+                "reverse": None,
+            }

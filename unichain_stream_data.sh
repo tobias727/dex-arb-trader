@@ -1,7 +1,7 @@
 #!/bin/bash
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 VENV_PATH="$SCRIPT_DIR/.venv/bin/activate"
-PYTHON_SCRIPT="src/binance/ws_stream.py"
+PYTHON_SCRIPT="src/uniswap/block_stream.py"
 cd "$SCRIPT_DIR" || exit 1
 
 if [[ ! -f "$VENV_PATH" ]]; then
@@ -14,5 +14,5 @@ source "$VENV_PATH"
 
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 
-echo -e "🚀 Starting WebSocket data stream..."
+echo -e "🚦 Starting Block Listener..."
 python3 "$PYTHON_SCRIPT"

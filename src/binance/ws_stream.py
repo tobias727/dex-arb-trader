@@ -3,10 +3,11 @@ import csv
 import json
 import asyncio
 import websockets
+from datetime import datetime
 from src.config import OUTPUT_DIRECTORY
 
 BINANCE_WS_URL = "wss://stream.binance.com:9443/ws/ethusdc@depth10@1000ms"  # 10 level, 1 sec
-order_book_data = []  # List to store order book updates
+order_book_data = []
 
 async def connect_to_binance():
     """Collects order book updates from Binance WebSocket and stores them in a list."""
@@ -16,6 +17,7 @@ async def connect_to_binance():
             while True:
                 data = await websocket.recv()
                 order_book = json.loads(data)
+                order_book["time"] = datetime.now().replace(microsecond=0).strftime('%Y-%m-%d %H:%M:%S.%f')
                 print(f"Order book update:\n{order_book}")
                 order_book_data.append(order_book)
         except websockets.ConnectionClosed as e:
@@ -29,16 +31,16 @@ def save_to_csv():
         print("No data to save.")
         return
     output_dir = os.path.join(OUTPUT_DIRECTORY, "data")
-    print(output_dir)
     csv_file_name = os.path.join(output_dir, "order_book.csv")
 
     with open(csv_file_name, mode="w", newline="", encoding="utf-8") as csv_file:
         csv_writer = csv.writer(csv_file)
         csv_writer.writerow(["time", "bids", "asks"])
         for data in order_book_data:
-            timestamp = data.get("lastUpdateId")
+            #lastUpdateId = data.get("lastUpdateId")
             bids = data.get("bids", [])
             asks = data.get("asks", [])
+            timestamp = data.get("time")
             csv_writer.writerow([timestamp, bids, asks])
 
     print(f"Data successfully saved to {csv_file_name}.")
