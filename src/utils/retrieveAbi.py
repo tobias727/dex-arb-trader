@@ -5,22 +5,22 @@ from web3 import Web3
 from src.config import ETHERSCAN_API_KEY, OUTPUT_DIRECTORY
 
 
-def save_abi_to_file(contract_address: str, chain_id="1") -> None:
-    """Saves ABI to file given a contract address
-    Optional input: chain_id 1 (mainnet)"""
+def save_abi_to_file(contract_address: str, chain_id, logger) -> None:
+    """Saves ABI to file given a contract address and chain-ID"""
     try:
-        contract_address = _validate_contract_address(contract_address)
+        contract_address = validate_contract_address(contract_address)
         contract_abi = _get_contract_abi(contract_address, chain_id)
         output_file_path = os.path.join(OUTPUT_DIRECTORY, f"abis/{chain_id}_{contract_address}_abi.json")
         with open(output_file_path, "w", encoding="utf-8") as json_file:
             json.dump(contract_abi, json_file, indent=4)
-        print(f"ABI saved to: {output_file_path}")
+        logger.info(f"ABI saved to: {output_file_path}")
     except Exception as e:
         raise Exception(f"An error occurred during save_abi_to_file: {e}")
 
 def load_abi(contract_address: str, chain_id: str):
     """Helper function to load abi from file given contract_address and chain_id"""
     try:
+        contract_address = validate_contract_address(contract_address)
         file_name = os.path.join(OUTPUT_DIRECTORY, f"abis/{chain_id}_{contract_address}_abi.json")
         if not os.path.exists(file_name):
             raise FileNotFoundError(f"ABI file not found for contract {contract_address} on chain {chain_id}")
@@ -44,7 +44,7 @@ def _get_contract_abi(contract_address: str, chain_id: str) -> dict:
         raise Exception(f"Failed to fetch data from Etherscan. HTTP status code: {response.status_code}")
     return contract_abi
 
-def _validate_contract_address(address: str) -> str:
+def validate_contract_address(address: str) -> str:
     """Validates and converts an Ethereum address to checksum format"""
     if not Web3.is_address(address):
         raise ValueError(f"Invalid Ethereum address provided: {address}")
