@@ -54,11 +54,10 @@ def get_amounts_in(
     a required input amount of the other asset
     """
     try:
-        print(f"DEBUG: token_in: {token_in}\ntoken_out: {token_out}\namount_out:{amount_out}")
         amount_in = router_contract.functions.getAmountsIn(
             int(amount_out),
             [Web3.to_checksum_address(token_in), Web3.to_checksum_address(token_out)],
-        ).call()[-1]
+        ).call()[0]
         return amount_in
     except Exception as e:
         print(f"Error in get_amounts_in: {e}")

@@ -18,11 +18,11 @@ async def main():
     # token params
     token0 = "0x4200000000000000000000000000000000000006" # weth
     token1 = "0x078D782b760474a361dDA0AF3839290b0EF57AD6" # usdc
-    token0_amounts = [10000000, 100000000000000000]
+    token0_amounts = [10000000000000, 1000000000000]
 
-    # start stream
+    # start unichain stream
     unichain_streamer = UnichainClient(token0, token1, token0_amounts, logger)
-    unichain_streamer.start_stream(5)
+    unichain_streamer.start_stream(20)
     unichain_streamer.save_to_csv(output_path)
 
 if __name__ == "__main__":
