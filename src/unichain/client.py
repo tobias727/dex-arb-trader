@@ -86,6 +86,7 @@ class UnichainClient:
             try:
                 if duration and time.time() - start_time >= duration:
                     is_streaming = False
+                    self.logger.info("✅ Terminated Unichain data stream")
                     break
                 latest_block = self.web3.eth.get_block("latest")
                 # only include new blocks
