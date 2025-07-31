@@ -1,6 +1,7 @@
 import csv
 import os
 import time
+from datetime import datetime
 from typing import List
 from web3 import Web3
 from src.unichain.uniswap_v2_helper import (
@@ -106,7 +107,10 @@ class UnichainClient:
         if not self.collected_blocks:
             self.logger.info("No blocks to save.")
             return
-        output_file = os.path.join(output_path, "unichain_uniswap_v2_blocks.csv")
+
+        # unique output file name
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_file = os.path.join(output_path, f"{timestamp}_unichain_uniswap_v2_blocks.csv")
 
         try:
             headers = self.collected_blocks[0].keys()

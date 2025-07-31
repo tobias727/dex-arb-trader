@@ -8,7 +8,7 @@ from src.config import (
     OUTPUT_DIRECTORY
 )
 
-STREAM_DURATION = 600
+STREAM_DURATION = 7200
 
 
 def binance_task(binance_client: BinanceClient, output_path, logger, duration):

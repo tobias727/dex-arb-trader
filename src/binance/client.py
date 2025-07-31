@@ -1,11 +1,10 @@
 import os
-import csv
-import websockets
+from datetime import datetime
 import time
 import json
-from datetime import datetime
-from binance.client import Client
-from src.config import BINANCE_API_KEY, BINANCE_API_SECRET
+import csv
+import websockets
+
 
 class BinanceClient:
     """Stream data from Binance"""
@@ -45,7 +44,10 @@ class BinanceClient:
         if not self.order_book:
             self.logger.info("No data to save.")
             return
-        output_file = os.path.join(output_path, "binance_ws_orderbook.csv")
+
+        # unique output file name
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_file = os.path.join(output_path, f"{timestamp}_binance_ws_orderbook.csv")
 
         try:
             headers = self.order_book[0].keys()
