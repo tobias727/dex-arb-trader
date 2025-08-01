@@ -2,13 +2,12 @@ import os
 import threading
 import logging
 import asyncio
-from src.unichain.client import UnichainClient
+from src.unichain.v4client import UnichainV4Client, V4Params
+from src.unichain.v2client import UnichainClient
 from src.binance.client import BinanceClient
-from src.config import (
-    OUTPUT_DIRECTORY
-)
+from src.config import OUTPUT_DIRECTORY, UNISWAP_PROTOCOL_VERSION
 
-STREAM_DURATION = 7200
+STREAM_DURATION = 1200
 
 
 def binance_task(binance_client: BinanceClient, output_path, logger, duration):
@@ -17,11 +16,13 @@ def binance_task(binance_client: BinanceClient, output_path, logger, duration):
     asyncio.run(binance_client.ws_stream(duration))
     binance_client.save_to_csv(output_path)
 
+
 def unichain_task(unichain_client: UnichainClient, output_path, logger, duration):
     """Task to handle Unichain data streaming"""
     logger.info("Starting Unichain data stream...")
     unichain_client.start_stream(duration)
     unichain_client.save_to_csv(output_path)
+
 
 def main():
     """Main class to stream data"""
@@ -34,16 +35,36 @@ def main():
     # Binance client
     binance_client = BinanceClient(logger)
 
-    # token params
-    token0 = "0x4200000000000000000000000000000000000006" # weth
-    token1 = "0x078D782b760474a361dDA0AF3839290b0EF57AD6" # usdc
-    token0_amounts = [10000000000000, 1000000000000]
-    unichain_client = UnichainClient(token0, token1, token0_amounts, logger)
+    # Uniswap client
+    if UNISWAP_PROTOCOL_VERSION == "v4":
+        uniswap_v4_params = V4Params(
+            token_in="0x0000000000000000000000000000000000000000",  # eth
+            token_out="0x078D782b760474a361dDA0AF3839290b0EF57AD6",  # usdc
+            amounts_in=[10**18, 10**17],
+            pool_fee=500,
+            pool_tick_spacing=10,
+        )
+        unichain_client = UnichainV4Client(uniswap_v4_params, logger)
+    else:
+        uniswap_v2_params = (
+            "0x4200000000000000000000000000000000000006",  # weth # token0
+            "0x078D782b760474a361dDA0AF3839290b0EF57AD6",  # usdc #token1
+            [10000000000000, 1000000000000],  # token0_amounts
+        )
+        unichain_client = UnichainClient(
+            uniswap_v2_params[0], uniswap_v2_params[1], uniswap_v2_params[2], logger
+        )
 
     # start threads
     threads = [
-        threading.Thread(target=binance_task, args=(binance_client, output_path, logger, STREAM_DURATION)),
-        threading.Thread(target=unichain_task, args=(unichain_client, output_path, logger, STREAM_DURATION)),
+        threading.Thread(
+            target=binance_task,
+            args=(binance_client, output_path, logger, STREAM_DURATION),
+        ),
+        threading.Thread(
+            target=unichain_task,
+            args=(unichain_client, output_path, logger, STREAM_DURATION),
+        ),
     ]
     for t in threads:
         t.start()
@@ -51,6 +72,7 @@ def main():
     # wait to finish
     for t in threads:
         t.join()
+
 
 if __name__ == "__main__":
     main()

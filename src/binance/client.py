@@ -8,9 +8,10 @@ import websockets
 
 class BinanceClient:
     """Stream data from Binance"""
+
     def __init__(self, logger):
         token_pair = "ethusdc"
-        update_interval = "1000ms" # 1000ms or 100ms
+        update_interval = "1000ms"  # 1000ms or 100ms
         order_book_depth = "10"
         self.binance_ws_url = f"wss://stream.binance.com:9443/ws/{token_pair}@depth{order_book_depth}@{update_interval}"
         self.logger = logger
@@ -31,7 +32,11 @@ class BinanceClient:
                     # fetch data
                     data = await websocket.recv()
                     order_book = json.loads(data)
-                    now_rounded_sec = datetime.now().replace(microsecond=0).strftime('%Y-%m-%d %H:%M:%S.%f')
+                    now_rounded_sec = (
+                        datetime.now()
+                        .replace(microsecond=0)
+                        .strftime("%Y-%m-%d %H:%M:%S.%f")
+                    )
                     order_book["time"] = now_rounded_sec
                     self.order_book.append(order_book)
                     self.logger.info(f"New Order Book fetched at {now_rounded_sec}")

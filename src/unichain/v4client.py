@@ -2,46 +2,55 @@ import csv
 import os
 import time
 from datetime import datetime
-from typing import List
 from web3 import Web3
-from src.unichain.uniswap_v2_helper import (
-    load_abi_if_not_exist,
-    get_amounts_out,
-    get_amounts_in
-)
-from src.utils.retrieveAbi import validate_contract_address
+from src.unichain.uniswap_v4_helper import get_amounts_out, get_amounts_in
+from src.utils.retrieveAbi import load_contract
 from src.config import (
     ALCHEMY_UNICHAIN_BASE_RPC_URL,
     ALCHEMY_API_KEY,
-    UNICHAIN_UNISWAP_V2_ROUTER_02,
+    UNICHAIN_UNISWAP_V4_QUOTER,
+    CHAINID_UNICHAIN,
 )
 
-class UnichainClient:
-    """Stream data from Unichain"""
+
+class V4Params:
+    """Struct for v4 params"""
+
     def __init__(
-            self,
-            token0: str,
-            token1: str,
-            token0_amounts: List[float],
-            logger,
-        ):
+        self,
+        token_in: str,
+        token_out: str,
+        amounts_in: list[float],
+        pool_fee: int,
+        pool_tick_spacing: int,
+        pool_hooks: str = "0x0000000000000000000000000000000000000000",
+    ):
+        self.token_in = token_in
+        self.token_out = token_out
+        self.amounts_in = amounts_in
+        self.pool_fee = pool_fee
+        self.pool_tick_spacing = pool_tick_spacing
+        self.pool_hooks = pool_hooks
+
+
+class UnichainV4Client:
+    """Stream data from Unichain"""
+
+    def __init__(self, uniswap_v4_params: V4Params, logger):
         # web3 connection
         rpc_url = f"{ALCHEMY_UNICHAIN_BASE_RPC_URL}{ALCHEMY_API_KEY}"
         self.web3 = Web3(Web3.HTTPProvider(rpc_url))
         self._check_web3_connection()
         # swap params
-        self.token0 = token0
-        self.token1 = token1
-        self.token0_amounts = token0_amounts
+        self.uniswap_v4_params = uniswap_v4_params
         # setup
         self.logger = logger
         self.is_streaming = False
         self.collected_blocks = []
-        # uniswap v2 setup
-        uniswap_v2_router_abi = load_abi_if_not_exist(self.logger)
-        uniswap_v2_router_address = validate_contract_address(UNICHAIN_UNISWAP_V2_ROUTER_02)
-        self.uniswap_v2_router_contract = self.web3.eth.contract(
-            address=uniswap_v2_router_address, abi=uniswap_v2_router_abi)
+        # load contracts
+        self.uniswap_v4_quoter_contract = load_contract(
+            self.logger, UNICHAIN_UNISWAP_V4_QUOTER, CHAINID_UNICHAIN, self.web3
+        )
 
     def _check_web3_connection(self):
         if not self.web3.is_connected():
@@ -56,23 +65,27 @@ class UnichainClient:
         """
         token1_amounts_out = []
         token1_amounts_in = []
-        for token0_amount in self.token0_amounts:
+        for token0_amount in self.uniswap_v4_params.amounts_in:
             token1_amount_out = get_amounts_out(
-                self.uniswap_v2_router_contract,
-                self.token0,
-                self.token1,
+                self.uniswap_v4_quoter_contract,
+                self.uniswap_v4_params.token_in,
+                self.uniswap_v4_params.token_out,
                 token0_amount,
+                self.uniswap_v4_params.pool_fee,
+                self.uniswap_v4_params.pool_tick_spacing,
             )
             token1_amount_in = get_amounts_in(
-                self.uniswap_v2_router_contract,
-                self.token1,
-                self.token0,
+                self.uniswap_v4_quoter_contract,
+                self.uniswap_v4_params.token_in,
+                self.uniswap_v4_params.token_out,
                 token0_amount,
+                self.uniswap_v4_params.pool_fee,
+                self.uniswap_v4_params.pool_tick_spacing,
             )
             token1_amounts_out.append(token1_amount_out)
             token1_amounts_in.append(token1_amount_in)
         return {
-            "token0_amounts": self.token0_amounts,
+            "token0_amounts": self.uniswap_v4_params.amounts_in,
             "token1_outputs": token1_amounts_out,
             "token1_inputs": token1_amounts_in,
         }
@@ -110,7 +123,9 @@ class UnichainClient:
 
         # unique output file name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = os.path.join(output_path, f"{timestamp}_unichain_uniswap_v2_blocks.csv")
+        output_file = os.path.join(
+            output_path, f"{timestamp}_unichain_uniswap_v4_blocks.csv"
+        )
 
         try:
             headers = self.collected_blocks[0].keys()
