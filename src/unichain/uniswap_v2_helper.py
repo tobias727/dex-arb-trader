@@ -1,27 +1,4 @@
-import os
 from web3 import Web3
-from src.utils.retrieveAbi import save_abi_to_file, load_abi, validate_contract_address
-from src.config import (
-    CHAINID_UNICHAIN,
-    UNICHAIN_UNISWAP_V2_ROUTER_02,
-    OUTPUT_DIRECTORY,
-)
-
-
-def load_abi_if_not_exist(logger):
-    """Method to download ABI if it doesn't exist and return abi"""
-    abi_filename = validate_contract_address(UNICHAIN_UNISWAP_V2_ROUTER_02)
-    abi_filepath = os.path.join(
-        OUTPUT_DIRECTORY, f"abis/{CHAINID_UNICHAIN}_{abi_filename}_abi.json"
-    )
-    if os.path.exists(abi_filepath):
-        logger.info(
-            f"✅ ABI already exists, skipping retrieval for {CHAINID_UNICHAIN}_{abi_filename}_abi.json"
-        )
-    else:
-        logger.info("⏳ ABI not found. Loading...")
-        save_abi_to_file(UNICHAIN_UNISWAP_V2_ROUTER_02, CHAINID_UNICHAIN, logger)
-    return load_abi(UNICHAIN_UNISWAP_V2_ROUTER_02, CHAINID_UNICHAIN)
 
 
 def get_amounts_out(

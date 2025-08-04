@@ -10,7 +10,7 @@ class BinanceClient:
     """Stream data from Binance"""
 
     def __init__(self, logger):
-        token_pair = "ethusdc"
+        token_pair = "unibtc"
         update_interval = "1000ms"  # 1000ms or 100ms
         order_book_depth = "10"
         self.binance_ws_url = f"wss://stream.binance.com:9443/ws/{token_pair}@depth{order_book_depth}@{update_interval}"
@@ -44,7 +44,7 @@ class BinanceClient:
                     self.logger.info(f"❌ WebSocket connection closed: {e}")
                     break
 
-    def save_to_csv(self, output_path):
+    def save_to_csv(self, output_path, latest=False):
         """Save WebSocket data to csv"""
         if not self.order_book:
             self.logger.info("No data to save.")
@@ -52,7 +52,10 @@ class BinanceClient:
 
         # unique output file name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = os.path.join(output_path, f"{timestamp}_binance_ws_orderbook.csv")
+        if latest:
+            output_file = os.path.join(output_path, "latest_binance_ws_orderbook.csv")
+        else:
+            output_file = os.path.join(output_path, f"{timestamp}_binance_ws_orderbook.csv")
 
         try:
             headers = self.order_book[0].keys()

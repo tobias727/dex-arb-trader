@@ -114,7 +114,7 @@ class UnichainV4Client:
             except Exception as e:
                 self.logger.error(f"❌ Error during stream_blocks: {e}")
 
-    def save_to_csv(self, output_path):
+    def save_to_csv(self, output_path, latest=False):
         """Save data to csv"""
         # skip if no data to save
         if not self.collected_blocks:
@@ -123,9 +123,14 @@ class UnichainV4Client:
 
         # unique output file name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = os.path.join(
-            output_path, f"{timestamp}_unichain_uniswap_v4_blocks.csv"
-        )
+        if latest:
+            output_file = os.path.join(
+                output_path, "latest_unichain_uniswap_v4_blocks.csv"
+            )
+        else:
+            output_file = os.path.join(
+                output_path, f"{timestamp}_unichain_uniswap_v4_blocks.csv"
+            )
 
         try:
             headers = self.collected_blocks[0].keys()
