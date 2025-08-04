@@ -1,3 +1,34 @@
-update_interval
-order_book_depth
-uniswap_protocol_version
+stream_duration: 5
+
+binance:
+  base_url: wss://stream.binance.com:9443/ws
+  update_interval: 1000ms # 1000ms or 100ms
+  order_book_depth: 10
+  token_pair: unibtc
+
+mainnet:
+  chain_id: 1
+  uniswap:
+    v2_contract_addresses:
+      router_02: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+  sushiswap:
+    contract_addresses:
+      router: "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
+
+unichain:
+  chain_id: 130
+  alchemy_rpc_base_url: https://unichain-mainnet.g.alchemy.com/v2/
+  uniswap:
+    active_protocol_version: v4 # v4 or v2
+    # https://docs.uniswap.org/contracts/v4/deployments
+    # https://docs.uniswap.org/contracts/v2/reference/smart-contracts/v2-deployments
+    contract_deployments:
+      v2_router_02: "0x284f11109359a7e1306c3e447ef14d38400063ff"
+      v2_factory: "0x1f98400000000000000000000000000000000002"
+      universal_router_v2: "0xef740bf23acae26f6492b10de645d6b98dc8eaf3"
+      v4_quoter: "0x333e3c607b141b18ff6de9f258db6e77fe7491e0"
+      v4_stateview: "0x86e8631a016f9068c3f085faf484ee3f5fdee8f2"
+    # https://docs.unichain.org/docs/technical-information/contract-addresses
+    tokens:
+      weth: "0x4200000000000000000000000000000000000006"
+      usdc: "0x078D782b760474a361dDA0AF3839290b0EF57AD6"

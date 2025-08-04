@@ -1,30 +1,59 @@
 import os
+import yaml
 from dotenv import load_dotenv
 
+
+def load_config(filepath="values.yaml"):
+    """Load deployment config"""
+    with open(filepath, "r", encoding="utf-8") as file:
+        return yaml.safe_load(file)
+
+
 load_dotenv()
+config = load_config()
 
 OUTPUT_DIRECTORY = os.path.join(os.getcwd(), "out")
 
+# Envs
 ETHERSCAN_API_KEY = os.getenv("ETHERSCAN_API_KEY")
 ALCHEMY_API_KEY = os.getenv("ALCHEMY_API_KEY")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
-ALCHEMY_UNICHAIN_BASE_RPC_URL = os.getenv("ALCHEMY_UNICHAIN_BASE_RPC_URL")
-
-# Setup
-UNISWAP_PROTOCOL_VERSION = os.getenv("UNISWAP_PROTOCOL_VERSION")
 
 # Mainnet
-CHAINID_MAINNET = os.getenv("CHAINID_MAINNET")
-MAINNET_UNISWAP_V2_ROUTER_02 = os.getenv("MAINNET_UNISWAP_V2_ROUTER_02")
-MAINNET_SUSHISWAP_ROUTER_ADDRESS = os.getenv("MAINNET_SUSHISWAP_ROUTER_ADDRESS")
+CHAINID_MAINNET = config["mainnet"]["chain_id"]
+MAINNET_UNISWAP_V2_ROUTER_02 = config["mainnet"]["uniswap"]["v2_contract_addresses"][
+    "router_02"
+]
+MAINNET_SUSHISWAP_ROUTER_ADDRESS = config["mainnet"]["sushiswap"]["contract_addresses"][
+    "router"
+]
 
 # Unichain
-CHAINID_UNICHAIN = os.getenv("CHAINID_UNICHAIN")
-UNICHAIN_UNIVERSAL_ROUTER_V2_ADDRESS = os.getenv("UNICHAIN_UNIVERSAL_ROUTER_V2_ADDRESS")
-UNICHAIN_UNISWAP_V2_ROUTER_02 = os.getenv("UNICHAIN_UNISWAP_V2_ROUTER_02")
-UNICHAIN_UNISWAP_V2_FACTORY = os.getenv("UNICHAIN_UNISWAP_V2_FACTORY")
-UNICHAIN_UNISWAP_V4_QUOTER = os.getenv("UNICHAIN_UNISWAP_V4_QUOTER")
-UNICHAIN_UNISWAP_V4_STATEVIEW = os.getenv("UNICHAIN_UNISWAP_V4_STATEVIEW")
-UNICHAIN_WETH = os.getenv("UNICHAIN_WETH")
-UNICHAIN_USDC = os.getenv("UNICHAIN_USDC")
+CHAINID_UNICHAIN = config["unichain"]["chain_id"]
+ALCHEMY_UNICHAIN_BASE_RPC_URL = config["unichain"]["alchemy_rpc_base_url"]
+UNISWAP_PROTOCOL_VERSION = config["unichain"]["uniswap"]["active_protocol_version"]
+UNICHAIN_UNIVERSAL_ROUTER_V2_ADDRESS = config["unichain"]["uniswap"][
+    "contract_deployments"
+]["universal_router_v2"]
+UNICHAIN_UNISWAP_V2_ROUTER_02 = config["unichain"]["uniswap"]["contract_deployments"][
+    "v2_router_02"
+]
+UNICHAIN_UNISWAP_V2_FACTORY = config["unichain"]["uniswap"]["contract_deployments"][
+    "v2_factory"
+]
+UNICHAIN_UNISWAP_V4_QUOTER = config["unichain"]["uniswap"]["contract_deployments"][
+    "v4_quoter"
+]
+UNICHAIN_UNISWAP_V4_STATEVIEW = config["unichain"]["uniswap"]["contract_deployments"][
+    "v4_stateview"
+]
+UNICHAIN_WETH = config["unichain"]["uniswap"]["tokens"]
+UNICHAIN_USDC = config["unichain"]["uniswap"]["tokens"]
+
+# Deployment
+STREAM_DURATION = config["stream_duration"]
+UPDATE_INTERVAL = config["binance"]["update_interval"]
+ORDER_BOOK_DEPTH = config["binance"]["order_book_depth"]
+BINANCE_TOKEN_PAIR = config["binance"]["token_pair"]
+BINANCE_BASE_URL_WS = config["binance"]["base_url"]

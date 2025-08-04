@@ -4,16 +4,22 @@ import time
 import json
 import csv
 import websockets
+from src.config import (
+    UPDATE_INTERVAL,
+    ORDER_BOOK_DEPTH,
+    BINANCE_TOKEN_PAIR,
+    BINANCE_BASE_URL_WS,
+)
 
 
 class BinanceClient:
     """Stream data from Binance"""
 
     def __init__(self, logger):
-        token_pair = "unibtc"
-        update_interval = "1000ms"  # 1000ms or 100ms
-        order_book_depth = "10"
-        self.binance_ws_url = f"wss://stream.binance.com:9443/ws/{token_pair}@depth{order_book_depth}@{update_interval}"
+        token_pair = BINANCE_TOKEN_PAIR
+        update_interval = UPDATE_INTERVAL
+        order_book_depth = ORDER_BOOK_DEPTH
+        self.binance_ws_url = f"{BINANCE_BASE_URL_WS}/{token_pair}@depth{order_book_depth}@{update_interval}"
         self.logger = logger
         self.order_book = []
 
@@ -55,7 +61,9 @@ class BinanceClient:
         if latest:
             output_file = os.path.join(output_path, "latest_binance_ws_orderbook.csv")
         else:
-            output_file = os.path.join(output_path, f"{timestamp}_binance_ws_orderbook.csv")
+            output_file = os.path.join(
+                output_path, f"{timestamp}_binance_ws_orderbook.csv"
+            )
 
         try:
             headers = self.order_book[0].keys()

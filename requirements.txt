@@ -5,3 +5,4 @@ python-binance==1.0.29
 python-dotenv==1.1.1
 websockets==15.0.1
 plotly-express==0.4.1
+PyYAML==6.0.2

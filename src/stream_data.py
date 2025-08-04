@@ -5,9 +5,7 @@ import asyncio
 from src.unichain.v4client import UnichainV4Client, V4Params
 from src.unichain.v2client import UnichainClient
 from src.binance.client import BinanceClient
-from src.config import OUTPUT_DIRECTORY, UNISWAP_PROTOCOL_VERSION
-
-STREAM_DURATION = 60
+from src.config import OUTPUT_DIRECTORY, UNISWAP_PROTOCOL_VERSION, STREAM_DURATION
 
 
 def binance_task(binance_client: BinanceClient, output_path, logger, duration):
@@ -18,13 +16,12 @@ def binance_task(binance_client: BinanceClient, output_path, logger, duration):
     binance_client.save_to_csv(output_path, latest=True)
 
 
-
 def unichain_task(unichain_client: UnichainClient, output_path, logger, duration):
     """Task to handle Unichain data streaming"""
     logger.info("Starting Unichain data stream...")
     unichain_client.start_stream(duration)
     unichain_client.save_to_csv(output_path)
-    unichain_client.save_to_csv(output_path, latest=True) # save latest
+    unichain_client.save_to_csv(output_path, latest=True)  # save latest
 
 
 def main():
