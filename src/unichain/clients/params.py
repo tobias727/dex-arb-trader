@@ -1,3 +1,19 @@
+from typing import List
+
+
+class V2Params:
+    """Struct for v2 params"""
+
+    def __init__(
+        self,
+        token0: str,
+        token1: str,
+        token0_amounts: List[float],
+    ):
+        self.token0 = token0
+        self.token1 = token1
+        self.token0_amounts = token0_amounts
+
 class V4Params:
     """Struct for v4 params"""
 

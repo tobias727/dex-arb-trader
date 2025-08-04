@@ -2,7 +2,7 @@ import os
 import threading
 import logging
 import asyncio
-from src.unichain.clients.params import V4Params
+from src.unichain.clients.params import V2Params, V4Params
 from src.unichain.clients.base_client import BaseUnichainClient
 from src.unichain.clients.v2client import UnichainV2Client
 from src.unichain.clients.v4client import UnichainV4Client
@@ -48,14 +48,12 @@ def main():
         )
         unichain_client = UnichainV4Client(uniswap_v4_params, logger)
     else:
-        uniswap_v2_params = (
-            "0x4200000000000000000000000000000000000006",  # weth # token0
-            "0x078D782b760474a361dDA0AF3839290b0EF57AD6",  # usdc #token1
-            [10000000000000, 1000000000000],  # token0_amounts
+        uniswap_v2_params = V2Params(
+            token0 = "0x4200000000000000000000000000000000000006",  # weth # token0,
+            token1 = "0x078D782b760474a361dDA0AF3839290b0EF57AD6",  # usdc #token1
+            token0_amounts = [10000000000000, 1000000000000],  # token0_amounts
         )
-        unichain_client = UnichainV2Client(
-            uniswap_v2_params[0], uniswap_v2_params[1], uniswap_v2_params[2], logger
-        )
+        unichain_client = UnichainV2Client(uniswap_v2_params, logger)
 
     # start threads
     threads = [
