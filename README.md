@@ -7,9 +7,13 @@ DEX Arbitrage Trader is a Python (and future Rust) based automated trading frame
 
 ## Setup and Usage
 
-### Setup
+### Prerequisites
+
+Ensure Python (>= `3.12`) and `pip` are installed.
 
 Run the following setup in a Linux/wsl environment.
+
+### Setup
 
 Copy the provided `.env.example` file to create your `.env` file and populate necessary values.
 ```bash
@@ -22,8 +26,6 @@ cp .env.example .env
 | `BINANCE_API_SECRET`   | Secret key for Binance API authentication.                |
 | `ALCHEMY_API_KEY`      | API key for interacting with Alchemy Ethereum services.   |
 | `ETHERSCAN_API_KEY`    | API key for accessing Etherscan for contract verification or data. |
-
-Ensure Python (>= `3.12`) and `pip` are installed.
 
 Next, setup a venv and install dependencies, using:
 ```
@@ -42,7 +44,14 @@ To analyse price discrepancies use `notebooks/data-analysis.ipynb`.
 
 ## Configuration
 
-Modify `values.yaml` to configure values.
+Modify `values.yaml` to configure deployment.
+
+## Project Architecture
+
+- `binance/`: Contains APIs to connect with Binance for fetching order book data.
+- `unichain/`: Provides Uniswap V2 and V4 helper functions for interacting with liquidity pools.
+- `utils/`: Tools for retrieving smart contract ABIs.
+- `notebooks/`: Jupyter notebooks for data analysis.
 
 ## Next Steps
 
@@ -52,6 +61,7 @@ Planned next steps are:
 - Rust execution layer
 - Execution slippage modeling
 - On-chain simulation
+
 
 ## License
 
