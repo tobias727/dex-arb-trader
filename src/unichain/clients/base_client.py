@@ -1,79 +1,35 @@
-import csv
-import os
 import time
+import os
+import csv
+from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List
 from web3 import Web3
-from src.unichain.uniswap_v2_helper import get_amounts_out, get_amounts_in
-from src.utils.retrieveAbi import load_contract
+from src.config import UNISWAP_PROTOCOL_VERSION
+
 from src.config import (
     ALCHEMY_UNICHAIN_BASE_RPC_URL,
     ALCHEMY_API_KEY,
-    UNICHAIN_UNISWAP_V2_ROUTER_02,
-    CHAINID_UNICHAIN,
 )
 
 
-class UnichainClient:
-    """Stream data from Unichain"""
+class BaseUnichainClient(ABC):
+    """Base class for Unichain clients"""
 
-    def __init__(
-        self,
-        token0: str,
-        token1: str,
-        token0_amounts: List[float],
-        logger,
-    ):
-        # web3 connection
+    def __init__(self, logger):
         rpc_url = f"{ALCHEMY_UNICHAIN_BASE_RPC_URL}{ALCHEMY_API_KEY}"
         self.web3 = Web3(Web3.HTTPProvider(rpc_url))
         self._check_web3_connection()
-        # swap params
-        self.token0 = token0
-        self.token1 = token1
-        self.token0_amounts = token0_amounts
-        # setup
         self.logger = logger
         self.is_streaming = False
         self.collected_blocks = []
-        # load contracts
-        self.uniswap_v2_router_contract = load_contract(
-            self.logger, UNICHAIN_UNISWAP_V2_ROUTER_02, CHAINID_UNICHAIN, self.web3
-        )
 
     def _check_web3_connection(self):
         if not self.web3.is_connected():
             raise ConnectionError("Could not establish a connection with Alchemy RPC")
 
+    @abstractmethod
     def _get_swap_rates(self):
-        """
-        Returns bidirectional rates for swapping token pair,
-        given amount of token0 (token0_amounts):
-        token0->token1 (token1_output),
-        token1->token0 (token1_input)
-        """
-        token1_amounts_out = []
-        token1_amounts_in = []
-        for token0_amount in self.token0_amounts:
-            token1_amount_out = get_amounts_out(
-                self.uniswap_v2_router_contract,
-                self.token0,
-                self.token1,
-                token0_amount,
-            )
-            token1_amount_in = get_amounts_in(
-                self.uniswap_v2_router_contract,
-                self.token1,
-                self.token0,
-                token0_amount,
-            )
-            token1_amounts_out.append(token1_amount_out)
-            token1_amounts_in.append(token1_amount_in)
-        return {
-            "token0_amounts": self.token0_amounts,
-            "token1_outputs": token1_amounts_out,
-            "token1_inputs": token1_amounts_in,
-        }
+        pass
 
     def start_stream(self, duration=5):
         """Method to stream blocks periodically and append to self.collected_blocks"""
@@ -100,22 +56,22 @@ class UnichainClient:
                 self.logger.error(f"❌ Error during stream_blocks: {e}")
 
     def save_to_csv(self, output_path, latest=False):
-        """Save data to csv"""
+        """Save collected block data to a CSV file"""
         # skip if no data to save
         if not self.collected_blocks:
-            self.logger.info("No blocks to save.")
+            self.logger.info("No blocks collected to save.")
             return
 
-        # unique output file name
+        # output file name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        if latest:
-            output_file = os.path.join(
-                output_path, "latest_unichain_uniswap_v2_blocks.csv"
-            )
-        else:
-            output_file = os.path.join(
-                output_path, f"{timestamp}_unichain_uniswap_v2_blocks.csv"
-            )
+        output_file = os.path.join(
+            output_path,
+            (
+                f"latest_unichain_uniswap_{UNISWAP_PROTOCOL_VERSION}.csv"
+                if latest
+                else f"{timestamp}_unichain_uniswap_{UNISWAP_PROTOCOL_VERSION}.csv"
+            ),
+        )
 
         try:
             headers = self.collected_blocks[0].keys()
@@ -123,6 +79,6 @@ class UnichainClient:
                 writer = csv.DictWriter(csv_file, fieldnames=headers)
                 writer.writeheader()
                 writer.writerows(self.collected_blocks)
-                self.logger.info(f"📁 Saved collected block data to {output_file}")
+            self.logger.info(f"📁 Saved data to {output_file}")
         except Exception as e:
             self.logger.error(f"❌ Error saving to CSV: {e}")

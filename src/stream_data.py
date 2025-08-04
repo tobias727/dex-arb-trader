@@ -2,8 +2,10 @@ import os
 import threading
 import logging
 import asyncio
-from src.unichain.v4client import UnichainV4Client, V4Params
-from src.unichain.v2client import UnichainClient
+from src.unichain.clients.params import V4Params
+from src.unichain.clients.base_client import BaseUnichainClient
+from src.unichain.clients.v2client import UnichainV2Client
+from src.unichain.clients.v4client import UnichainV4Client
 from src.binance.client import BinanceClient
 from src.config import OUTPUT_DIRECTORY, UNISWAP_PROTOCOL_VERSION, STREAM_DURATION
 
@@ -13,10 +15,10 @@ def binance_task(binance_client: BinanceClient, output_path, logger, duration):
     logger.info("Starting Binance WebSocket stream...")
     asyncio.run(binance_client.ws_stream(duration))
     binance_client.save_to_csv(output_path)
-    binance_client.save_to_csv(output_path, latest=True)
+    binance_client.save_to_csv(output_path, latest=True)  # save latest
 
 
-def unichain_task(unichain_client: UnichainClient, output_path, logger, duration):
+def unichain_task(unichain_client: BaseUnichainClient, output_path, logger, duration):
     """Task to handle Unichain data streaming"""
     logger.info("Starting Unichain data stream...")
     unichain_client.start_stream(duration)
@@ -51,7 +53,7 @@ def main():
             "0x078D782b760474a361dDA0AF3839290b0EF57AD6",  # usdc #token1
             [10000000000000, 1000000000000],  # token0_amounts
         )
-        unichain_client = UnichainClient(
+        unichain_client = UnichainV2Client(
             uniswap_v2_params[0], uniswap_v2_params[1], uniswap_v2_params[2], logger
         )
 
