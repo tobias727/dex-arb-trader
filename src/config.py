@@ -8,7 +8,6 @@ def load_config(filepath="values.yaml"):
     with open(filepath, "r", encoding="utf-8") as file:
         return yaml.safe_load(file)
 
-
 load_dotenv()
 config = load_config()
 
@@ -55,5 +54,5 @@ UNICHAIN_USDC = config["unichain"]["uniswap"]["tokens"]
 STREAM_DURATION = config["stream_duration"]
 UPDATE_INTERVAL = config["binance"]["update_interval"]
 ORDER_BOOK_DEPTH = config["binance"]["order_book_depth"]
-BINANCE_TOKEN_PAIR = config["binance"]["token_pair"]
+BINANCE_TOKEN_PAIRS = config["binance"]["token_pairs"]
 BINANCE_BASE_URL_WS = config["binance"]["base_url"]

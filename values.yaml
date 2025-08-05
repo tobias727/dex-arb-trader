@@ -1,10 +1,18 @@
-stream_duration: 5
+stream_duration: 60
 
 binance:
-  base_url: wss://stream.binance.com:9443/ws
+  base_url: wss://stream.binance.com:9443
   update_interval: 1000ms # 1000ms or 100ms
-  order_book_depth: 10
-  token_pair: unibtc
+  order_book_depth: 10 # 5, 10 or 20
+  token_pairs:
+    - ethusdc
+    - wbtceth
+    - unieth
+    - ethusdt
+    - uniusdc
+    - usdcusdt
+    - wbtcusdt
+    - ethdai
 
 mainnet:
   chain_id: 1

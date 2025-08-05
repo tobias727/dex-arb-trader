@@ -13,7 +13,7 @@ from src.config import OUTPUT_DIRECTORY, UNISWAP_PROTOCOL_VERSION, STREAM_DURATI
 def binance_task(binance_client: BinanceClient, output_path, logger, duration):
     """Task to handle Binance WebSocket streaming"""
     logger.info("Starting Binance WebSocket stream...")
-    asyncio.run(binance_client.ws_stream(duration))
+    asyncio.run(binance_client.run(duration))
     binance_client.save_to_csv(output_path)
     binance_client.save_to_csv(output_path, latest=True)  # save latest
 
