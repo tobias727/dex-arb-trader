@@ -8,6 +8,7 @@ def load_config(filepath="values.yaml"):
     with open(filepath, "r", encoding="utf-8") as file:
         return yaml.safe_load(file)
 
+
 load_dotenv()
 config = load_config()
 

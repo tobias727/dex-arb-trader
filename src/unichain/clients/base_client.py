@@ -47,9 +47,17 @@ class BaseUnichainClient(ABC):
             ),
         )
         headers = [
-            "block_number", "timestamp", "pool_id", "feeTier",
-            "token0_symbol", "token1_symbol", "amount_in", "bid",
-            "bid_gas", "ask", "ask_gas"
+            "block_number",
+            "timestamp",
+            "pool_id",
+            "feeTier",
+            "token0_symbol",
+            "token1_symbol",
+            "amount_in",
+            "bid",
+            "bid_gas",
+            "ask",
+            "ask_gas",
         ]
         csv_file = open(output_file, mode="w", newline="", encoding="utf-8")
         writer = csv.DictWriter(csv_file, fieldnames=headers)
@@ -58,19 +66,19 @@ class BaseUnichainClient(ABC):
 
         async def process_new_block(latest_block):
             """Process data for all pools in the current block"""
-            block_number = latest_block['number']
+            block_number = latest_block["number"]
             self.logger.info(f"🔗 New block detected: {block_number}")
             swap_rates = await self._get_swap_rates()
             for pool_data in swap_rates:
                 pool_data["block_number"] = block_number
                 pool_data["timestamp"] = latest_block["timestamp"]
                 block_level_data = {
-                "block_number": pool_data.get("block_number"),
-                "timestamp": pool_data.get("timestamp"),
-                "pool_id": pool_data.get("pool_id"),
-                "feeTier": pool_data.get("feeTier"),
-                "token0_symbol": pool_data.get("token0.symbol"),
-                "token1_symbol": pool_data.get("token1.symbol"),
+                    "block_number": pool_data.get("block_number"),
+                    "timestamp": pool_data.get("timestamp"),
+                    "pool_id": pool_data.get("pool_id"),
+                    "feeTier": pool_data.get("feeTier"),
+                    "token0_symbol": pool_data.get("token0.symbol"),
+                    "token1_symbol": pool_data.get("token1.symbol"),
                 }
 
                 # Flatten rates data
@@ -81,26 +89,50 @@ class BaseUnichainClient(ABC):
                             ask_data = rate_data.get("ask", [None, None])
 
                             # Write row to CSV
-                            writer.writerow({
-                                **block_level_data,
-                                "amount_in": amount_in,
-                                "bid": bid_data[0] if isinstance(bid_data, list) else None,
-                                "bid_gas": bid_data[1] if isinstance(bid_data, list) else None,
-                                "ask": ask_data[0] if isinstance(ask_data, list) else None,
-                                "ask_gas": ask_data[1] if isinstance(ask_data, list) else None,
-                            })
+                            writer.writerow(
+                                {
+                                    **block_level_data,
+                                    "amount_in": amount_in,
+                                    "bid": (
+                                        bid_data[0]
+                                        if isinstance(bid_data, list)
+                                        else None
+                                    ),
+                                    "bid_gas": (
+                                        bid_data[1]
+                                        if isinstance(bid_data, list)
+                                        else None
+                                    ),
+                                    "ask": (
+                                        ask_data[0]
+                                        if isinstance(ask_data, list)
+                                        else None
+                                    ),
+                                    "ask_gas": (
+                                        ask_data[1]
+                                        if isinstance(ask_data, list)
+                                        else None
+                                    ),
+                                }
+                            )
                             csv_file.flush()  # Ensure each row is saved immediately
                         except Exception as e:
-                            self.logger.error(f"❌ Error while processing rates data: {e}")
+                            self.logger.error(
+                                f"❌ Error while processing rates data: {e}"
+                            )
                 else:
-                    self.logger.warning(f"⚠️ No valid rates data for block: {block_number}")
+                    self.logger.warning(
+                        f"⚠️ No valid rates data for block: {block_number}"
+                    )
 
         async def block_monitor():
             """Monitor for new blocks and process them"""
             nonlocal current_block, is_streaming
             while is_streaming:
                 try:
-                    if duration and datetime.now() - start_time >= timedelta(seconds=duration):
+                    if duration and datetime.now() - start_time >= timedelta(
+                        seconds=duration
+                    ):
                         is_streaming = False
                         self.logger.info("✅ Terminated Unichain data stream")
                         break

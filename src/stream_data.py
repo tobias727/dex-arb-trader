@@ -6,7 +6,12 @@ import asyncio
 from src.unichain.clients.base_client import BaseUnichainClient
 from src.unichain.clients.v4client import UnichainV4Client
 from src.binance.client import BinanceClient
-from src.config import OUTPUT_DIRECTORY, UNISWAP_PROTOCOL_VERSION, STREAM_DURATION, LATEST
+from src.config import (
+    OUTPUT_DIRECTORY,
+    UNISWAP_PROTOCOL_VERSION,
+    STREAM_DURATION,
+    LATEST,
+)
 
 
 def binance_task(binance_client: BinanceClient, output_path, logger, duration):
@@ -46,7 +51,7 @@ def main():
 
     if UNISWAP_PROTOCOL_VERSION == "v4":
         unichain_client = UnichainV4Client(pools, logger)
-    else: # v2 is deprecated after commit f04e6907da068ba2bccc4f52555efcebda29d4cf
+    else:  # v2 is deprecated after commit f04e6907da068ba2bccc4f52555efcebda29d4cf
         raise ValueError("Only Uniswap V4 is supported for this task.")
 
     # start threads

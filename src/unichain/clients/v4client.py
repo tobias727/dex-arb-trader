@@ -25,7 +25,7 @@ class UnichainV4Client(BaseUnichainClient):
         try:
             # dynamic input adjustment
             token0_decimals = int(pool["token0"]["decimals"])
-            input_amounts = [10 ** (token0_decimals-2), 10 ** (token0_decimals - 3)]
+            input_amounts = [10 ** (token0_decimals - 2), 10 ** (token0_decimals - 3)]
 
             pool_result = {
                 "pool_id": pool["id"],
@@ -34,7 +34,7 @@ class UnichainV4Client(BaseUnichainClient):
                 "token1.symbol": pool["token1"]["symbol"],
                 "token0.id": pool["token0"]["id"],
                 "token1.id": pool["token1"]["id"],
-                "rates": {}
+                "rates": {},
             }
             # Compute rates for each token0 input amount
             for amount_token0 in input_amounts:
@@ -62,7 +62,9 @@ class UnichainV4Client(BaseUnichainClient):
                 }
             return pool_result
         except Exception as e:
-            self.logger.error(f"❌ Error fetching swap rates for pool {pool['id']}: {e}")
+            self.logger.error(
+                f"❌ Error fetching swap rates for pool {pool['id']}: {e}"
+            )
             return None
 
     async def _get_swap_rates(self):

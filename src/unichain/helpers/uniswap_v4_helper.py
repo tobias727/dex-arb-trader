@@ -43,7 +43,7 @@ def get_amounts_in(
     v4_quoter_contract,
     token_in: str,
     token_out: str,
-    exact_amount_token0: float, # token0 as target
+    exact_amount_token0: float,  # token0 as target
     pool_fee: int,
     pool_tick_spacing: int,
     pool_hooks: str = "0x0000000000000000000000000000000000000000",
@@ -73,5 +73,7 @@ def get_amounts_in(
         ).call()
         return token_1_amount
     except Exception as e:
-        print(f"Error in get_amounts_in: {e} +\n\n quote_output_params: {quote_output_params}\n\n")
+        print(
+            f"Error in get_amounts_in: {e} +\n\n quote_output_params: {quote_output_params}\n\n"
+        )
         return None

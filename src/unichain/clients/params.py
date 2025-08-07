@@ -14,6 +14,7 @@ class V2Params:
         self.token1 = token1
         self.token0_amounts = token0_amounts
 
+
 class V4Params:
     """Struct for v4 params"""
 
