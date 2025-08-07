@@ -90,7 +90,7 @@ class BinanceClient:
             except Exception as e:
                 self.logger.error(f"❌ Error processing message: {e}")
 
-    async def run(self, duration=10):
+    async def run(self, duration=5):
         """Main method to stream and process data"""
         websocket_task = asyncio.create_task(self.ws_stream())
         process_task = asyncio.create_task(self.process_messages())

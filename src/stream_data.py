@@ -1,13 +1,12 @@
 import os
 import threading
+import json
 import logging
 import asyncio
-from src.unichain.clients.params import V2Params, V4Params
 from src.unichain.clients.base_client import BaseUnichainClient
-from src.unichain.clients.v2client import UnichainV2Client
 from src.unichain.clients.v4client import UnichainV4Client
 from src.binance.client import BinanceClient
-from src.config import OUTPUT_DIRECTORY, UNISWAP_PROTOCOL_VERSION, STREAM_DURATION
+from src.config import OUTPUT_DIRECTORY, UNISWAP_PROTOCOL_VERSION, STREAM_DURATION, LATEST
 
 
 def binance_task(binance_client: BinanceClient, output_path, logger, duration):
@@ -15,15 +14,19 @@ def binance_task(binance_client: BinanceClient, output_path, logger, duration):
     logger.info("Starting Binance WebSocket stream...")
     asyncio.run(binance_client.run(duration))
     binance_client.save_to_csv(output_path)
-    binance_client.save_to_csv(output_path, latest=True)  # save latest
+    binance_client.save_to_csv(output_path, latest=LATEST)  # save latest
 
 
 def unichain_task(unichain_client: BaseUnichainClient, output_path, logger, duration):
     """Task to handle Unichain data streaming"""
     logger.info("Starting Unichain data stream...")
-    unichain_client.start_stream(duration)
-    unichain_client.save_to_csv(output_path)
-    unichain_client.save_to_csv(output_path, latest=True)  # save latest
+    unichain_client.start_stream(output_path, duration, latest=LATEST)
+
+
+def load_pools(json_filepath):
+    """Load pool data from json (The Graph)"""
+    with open(json_filepath, "r", encoding="utf-8") as f:
+        return json.load(f)["data"]["pools"]
 
 
 def main():
@@ -37,23 +40,14 @@ def main():
     # Binance client
     binance_client = BinanceClient(logger)
 
-    # Uniswap client
+    # Load pools from JSON
+    pools_filepath = "unichain_v4_pools.json"
+    pools = load_pools(pools_filepath)
+
     if UNISWAP_PROTOCOL_VERSION == "v4":
-        uniswap_v4_params = V4Params(
-            token_in="0x8f187aa05619a017077f5308904739877ce9ea21",  # eth
-            token_out="0x927b51f251480a681271180da4de28d44ec4afb8",  # usdc
-            amounts_in=[10**18, 10**17],
-            pool_fee=100,
-            pool_tick_spacing=1,
-        )
-        unichain_client = UnichainV4Client(uniswap_v4_params, logger)
-    else:
-        uniswap_v2_params = V2Params(
-            token0 = "0x4200000000000000000000000000000000000006",  # weth # token0,
-            token1 = "0x078D782b760474a361dDA0AF3839290b0EF57AD6",  # usdc #token1
-            token0_amounts = [10000000000000, 1000000000000],  # token0_amounts
-        )
-        unichain_client = UnichainV2Client(uniswap_v2_params, logger)
+        unichain_client = UnichainV4Client(pools, logger)
+    else: # v2 is deprecated after commit f04e6907da068ba2bccc4f52555efcebda29d4cf
+        raise ValueError("Only Uniswap V4 is supported for this task.")
 
     # start threads
     threads = [
