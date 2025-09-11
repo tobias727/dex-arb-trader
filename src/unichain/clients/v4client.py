@@ -5,6 +5,11 @@ from src.unichain.clients.base_client import BaseUnichainClient
 from src.config import (
     UNICHAIN_UNISWAP_V4_QUOTER,
     CHAINID_UNICHAIN,
+    ACTIVE_TOKEN0,
+    ACTIVE_TOKEN1,
+    TOKEN0_INPUT,
+    TOKEN0_DECIMALS,
+    TOKEN1_DECIMALS,
 )
 
 
@@ -19,6 +24,45 @@ class UnichainV4Client(BaseUnichainClient):
         self.uniswap_v4_quoter_contract = load_contract(
             self.logger, UNICHAIN_UNISWAP_V4_QUOTER, CHAINID_UNICHAIN, self.web3
         )
+        # init active trading pool
+        self.active_trading_pool = next(
+            (pool for pool in self.pools
+            if (
+                (pool["token0"]["symbol"] == ACTIVE_TOKEN0 and pool["token1"]["symbol"] == ACTIVE_TOKEN1)
+            )),
+            None
+        )
+
+    def estimate_swap_price(self):
+        """Returns {"bid":bid, "ask":ask} for active trading pair"""
+        input_amount = TOKEN0_INPUT*10**int(TOKEN0_DECIMALS) # convert to wei
+        pool_rates = self._fetch_single_pool_rate(self.active_trading_pool, input_amount)
+        return pool_rates
+
+    def _fetch_single_pool_rate(self, pool, input_amount):
+        token0_id = pool["token0"]["id"]
+        token1_id = pool["token1"]["id"]
+        fee_tier = int(pool["feeTier"])
+        tick_spacing = int(pool["tickSpacing"])
+
+        token_out_amount = get_amounts_out(
+            self.uniswap_v4_quoter_contract,
+            token0_id,
+            token1_id,
+            input_amount,
+            fee_tier,
+            tick_spacing,
+        )
+
+        token_in_amount = get_amounts_in(
+            self.uniswap_v4_quoter_contract,
+            token0_id,
+            token1_id,
+            input_amount,
+            fee_tier,
+            tick_spacing,
+        )
+        return(token_out_amount, token_in_amount) # (bid, ask)
 
     async def _fetch_pool_rates(self, pool):
         """Fetch rates for a single pool asynchronously"""

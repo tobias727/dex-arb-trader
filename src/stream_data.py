@@ -5,7 +5,7 @@ import logging
 import asyncio
 from src.unichain.clients.base_client import BaseUnichainClient
 from src.unichain.clients.v4client import UnichainV4Client
-from src.binance.client import BinanceClient
+from src.binance.ws_client import BinanceClient
 from src.config import (
     OUTPUT_DIRECTORY,
     UNISWAP_PROTOCOL_VERSION,
@@ -18,7 +18,6 @@ def binance_task(binance_client: BinanceClient, output_path, logger, duration):
     """Task to handle Binance WebSocket streaming"""
     logger.info("Starting Binance WebSocket stream...")
     asyncio.run(binance_client.run(duration))
-    binance_client.save_to_csv(output_path)
     binance_client.save_to_csv(output_path, latest=LATEST)  # save latest
 
 
