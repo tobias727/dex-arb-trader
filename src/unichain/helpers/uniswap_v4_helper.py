@@ -5,7 +5,7 @@ def get_amounts_out(
     v4_quoter_contract,
     token_in: str,
     token_out: str,
-    amount_token0: float,
+    amount_token0: int,
     pool_fee: int,
     pool_tick_spacing: int,
     pool_hooks: str = "0x0000000000000000000000000000000000000000",
@@ -17,18 +17,18 @@ def get_amounts_out(
     """
     try:
         pool_key = (
-            Web3.to_checksum_address(token_in),  # currency0
-            Web3.to_checksum_address(token_out),  # currency1
-            pool_fee,  # fee (uint24)
-            pool_tick_spacing,  # tickSpacing (int24)
+            Web3.to_checksum_address(token_in),     # currency0
+            Web3.to_checksum_address(token_out),    # currency1
+            pool_fee,                               # fee (uint24)
+            pool_tick_spacing,                      # tickSpacing (int24)
             Web3.to_checksum_address(pool_hooks),
         )
 
         quote_input_params = (
             pool_key,
-            True,  # zeroForOne (bool)
-            amount_token0,  # exactAmount (uint128)
-            b"",  # hookData (bytes)
+            True,           # zeroForOne (bool)
+            int(amount_token0),  # exactAmount (uint128)
+            b"",            # hookData (bytes)
         )
         token_1_amount = v4_quoter_contract.functions.quoteExactInputSingle(
             quote_input_params

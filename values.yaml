@@ -1,7 +1,18 @@
-stream_duration: 5
+stream_duration: 8000
 latest: false # overwrite latest file
 
+execution:
+  active_trading_pair: ETHUSDC
+  active_token0: ETH
+  active_token1: USDC
+  token0_input: 1 # ETH
+  token0_decimals: 18
+  token1_decimals: 6
+  binance_fee: 0.001 # https://www.binance.com/en/fee/trading
+  min_edge_bps: 0.0000000001
+
 binance:
+  base_url_rpc: https://api.binance.com
   base_url: wss://stream.binance.com:9443
   update_interval: 1000ms # 1000ms or 100ms
   order_book_depth: 10 # 5, 10 or 20
@@ -33,10 +44,32 @@ unichain:
     contract_deployments:
       v2_router_02: "0x284f11109359a7e1306c3e447ef14d38400063ff"
       v2_factory: "0x1f98400000000000000000000000000000000002"
-      universal_router_v2: "0xef740bf23acae26f6492b10de645d6b98dc8eaf3"
+      universal_router: "0xef740bf23acae26f6492b10de645d6b98dc8eaf3"
+      permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3"
       v4_quoter: "0x333e3c607b141b18ff6de9f258db6e77fe7491e0"
       v4_stateview: "0x86e8631a016f9068c3f085faf484ee3f5fdee8f2"
+      v4_pool_manager: "0x1f98400000000000000000000000000000000004"
     # https://docs.unichain.org/docs/technical-information/contract-addresses
     tokens:
       weth: "0x4200000000000000000000000000000000000006"
       usdc: "0x078D782b760474a361dDA0AF3839290b0EF57AD6"
+      eth_native: "0x0000000000000000000000000000000000000000"
+    universal_router_commands:
+      V4_SWAP: 0x10
+      WRAP_ETH: 0x0b
+      UNWRAP_ETH: 0x0c
+      BALANCE_CHECK_ERC20: 0x0e
+
+unichain-sepolia-testnet:
+  chain_id: 1301
+  rpc_url: https://sepolia.unichain.org/
+  uniswap:
+    contract_deployments:
+      universal_router: "0xf70536B3bcC1bD1a972dc186A2cf84cC6da6Be5D"
+      pool_manager: "0x00b036b58a818b1bc34d502d3fe730db729e62ac"
+      state_view: "0xc199f1072a74d4e905aba1a84d9a45e2546b6222"
+      permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+    tokens:
+      usdc: "0x31d0220469e10c4E71834a79b1f276d740d3768F"
+      weth9: "0x4200000000000000000000000000000000000006"
+      eth_native: "0x0000000000000000000000000000000000000000"
