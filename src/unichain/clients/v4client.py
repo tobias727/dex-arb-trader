@@ -34,8 +34,8 @@ class UnichainV4Client(BaseUnichainClient):
         )
 
     def estimate_swap_price(self):
-        """Returns {"bid":bid, "ask":ask} for active trading pair"""
-        input_amount = TOKEN0_INPUT*10**int(TOKEN0_DECIMALS) # convert to wei
+        """Returns {"bid":bid, "ask":ask} for active trading pair (notional values)"""
+        input_amount = int(TOKEN0_INPUT*10**int(TOKEN0_DECIMALS)) # convert to wei
         pool_rates = self._fetch_single_pool_rate(self.active_trading_pool, input_amount)
         return pool_rates
 

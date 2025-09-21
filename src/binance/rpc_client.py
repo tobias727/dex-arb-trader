@@ -8,9 +8,10 @@ from src.config import (
 
 class BinanceClientRpc:
     """Client to receive price and execute via RPC"""
-    def __init__(self, logger):
+    def __init__(self, logger, token0_input):
         self.logger = logger
         self.binance_rpc_url = f"{BINANCE_BASE_URL_RPC}/api/v3/depth?symbol={ACTIVE_TRADING_PAIR}&limit=5"
+        self.token0_input = token0_input
 
     def get_price(self):
         """Returns top of the order book (int(bid), int(ask))"""
@@ -26,6 +27,6 @@ class BinanceClientRpc:
                 raise
 
         data = r.json()
-        best_bid_scaled = int(float(data["bids"][0][0]) * 10**TOKEN1_DECIMALS)
-        best_ask_scaled = int(float(data["asks"][0][0]) * 10**TOKEN1_DECIMALS)
-        return best_bid_scaled, best_ask_scaled
+        bid_notional = int((float(data["bids"][0][0]) * 10**TOKEN1_DECIMALS)*float(self.token0_input)) # (price in smallest unit) // token0_input
+        ask_notional = int((float(data["asks"][0][0]) * 10**TOKEN1_DECIMALS)*float(self.token0_input))
+        return bid_notional, ask_notional

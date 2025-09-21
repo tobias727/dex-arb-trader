@@ -28,5 +28,11 @@ fi
 
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 
-echo -e "⚡ Starting Execution..."
-pytest tests/ --maxfail=0 -v -s #--disable-warnings
+# If an argument is passed, run that specific test, otherwise run all
+if [[ -n "$1" ]]; then
+    echo -e "▶️ Running specific test: $1"
+    pytest "$1" --maxfail=0 -v -s  #--disable-warnings
+else
+    echo -e "▶️ Running all tests"
+    pytest tests/ --maxfail=0 -v -s  #--disable-warnings
+fi

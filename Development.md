@@ -33,3 +33,15 @@ using:
   }
 }
 ```
+
+# Testing
+
+To run Pytests use
+```
+./runTests.sh
+```
+
+and for specific test use e.g.
+```
+./runTests.sh tests/binance/test_rpc_client.py::TestBinanceClientRpc::test_get_price_success
+```
