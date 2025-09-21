@@ -26,17 +26,25 @@ class UnichainV4Client(BaseUnichainClient):
         )
         # init active trading pool
         self.active_trading_pool = next(
-            (pool for pool in self.pools
-            if (
-                (pool["token0"]["symbol"] == ACTIVE_TOKEN0 and pool["token1"]["symbol"] == ACTIVE_TOKEN1)
-            )),
-            None
+            (
+                pool
+                for pool in self.pools
+                if (
+                    (
+                        pool["token0"]["symbol"] == ACTIVE_TOKEN0
+                        and pool["token1"]["symbol"] == ACTIVE_TOKEN1
+                    )
+                )
+            ),
+            None,
         )
 
     def estimate_swap_price(self):
         """Returns {"bid":bid, "ask":ask} for active trading pair (notional values)"""
-        input_amount = int(TOKEN0_INPUT*10**int(TOKEN0_DECIMALS)) # convert to wei
-        pool_rates = self._fetch_single_pool_rate(self.active_trading_pool, input_amount)
+        input_amount = int(TOKEN0_INPUT * 10 ** int(TOKEN0_DECIMALS))  # convert to wei
+        pool_rates = self._fetch_single_pool_rate(
+            self.active_trading_pool, input_amount
+        )
         return pool_rates
 
     def _fetch_single_pool_rate(self, pool, input_amount):
@@ -62,7 +70,7 @@ class UnichainV4Client(BaseUnichainClient):
             fee_tier,
             tick_spacing,
         )
-        return(token_out_amount, token_in_amount) # (bid, ask)
+        return (token_out_amount, token_in_amount)  # (bid, ask)
 
     async def _fetch_pool_rates(self, pool):
         """Fetch rates for a single pool asynchronously"""

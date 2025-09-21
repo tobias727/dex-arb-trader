@@ -1,7 +1,7 @@
 from unittest.mock import patch, Mock
 import requests
 import pytest
-from src.config import(
+from src.config import (
     TOKEN1_DECIMALS,
 )
 from src.binance.rpc_client import BinanceClientRpc
@@ -10,6 +10,7 @@ from tests.utils.dummy_logger import DummyLogger
 
 class TestBinanceClientRpc:
     """Test for BinanceClientRpc"""
+
     client = BinanceClientRpc(logger=DummyLogger(), token0_input=1)
 
     @patch("requests.get")
@@ -19,7 +20,7 @@ class TestBinanceClientRpc:
         mock_resp.raise_for_status.return_value = None  # no exception
         mock_resp.json.return_value = {
             "bids": [["100.12345678", "1.0"]],
-            "asks": [["100.23456789", "1.0"]]
+            "asks": [["100.23456789", "1.0"]],
         }
         mock_get.return_value = mock_resp
 

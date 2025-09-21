@@ -5,6 +5,7 @@ from tests.utils.dummy_logger import DummyLogger
 
 class TestUnichainV4Client:
     """Test for v4 client"""
+
     pools_filepath = "unichain_v4_pools.json"
     pools = load_pools(pools_filepath)
     client = UnichainV4Client(pools, DummyLogger())

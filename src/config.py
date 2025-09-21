@@ -40,9 +40,9 @@ UNISWAP_PROTOCOL_VERSION = config["unichain"]["uniswap"]["active_protocol_versio
 UNICHAIN_UNIVERSAL_ROUTER_ADDRESS = config["unichain"]["uniswap"][
     "contract_deployments"
 ]["universal_router"]
-UNICHAIN_V4_POOL_MANAGER = config["unichain"]["uniswap"][
-    "contract_deployments"
-]["v4_pool_manager"]
+UNICHAIN_V4_POOL_MANAGER = config["unichain"]["uniswap"]["contract_deployments"][
+    "v4_pool_manager"
+]
 UNICHAIN_UNISWAP_V2_ROUTER_02 = config["unichain"]["uniswap"]["contract_deployments"][
     "v2_router_02"
 ]
@@ -62,9 +62,15 @@ UNICHAIN_WETH = config["unichain"]["uniswap"]["tokens"]["weth"]
 UNICHAIN_USDC = config["unichain"]["uniswap"]["tokens"]["usdc"]
 UNICHAIN_ETH_NATIVE = config["unichain"]["uniswap"]["tokens"]["eth_native"]
 COMMAND_V4_SWAP = config["unichain"]["uniswap"]["universal_router_commands"]["V4_SWAP"]
-COMMAND_WRAP_ETH = config["unichain"]["uniswap"]["universal_router_commands"]["WRAP_ETH"]
-COMMAND_UNWRAP_ETH = config["unichain"]["uniswap"]["universal_router_commands"]["UNWRAP_ETH"]
-COMMAND_BALANCE_CHECK_ERC20 = config["unichain"]["uniswap"]["universal_router_commands"]["BALANCE_CHECK_ERC20"]
+COMMAND_WRAP_ETH = config["unichain"]["uniswap"]["universal_router_commands"][
+    "WRAP_ETH"
+]
+COMMAND_UNWRAP_ETH = config["unichain"]["uniswap"]["universal_router_commands"][
+    "UNWRAP_ETH"
+]
+COMMAND_BALANCE_CHECK_ERC20 = config["unichain"]["uniswap"][
+    "universal_router_commands"
+]["BALANCE_CHECK_ERC20"]
 
 # Unichain testnet
 CHAINID_UNICHAIN_SEPOLIA_TESTNET = config["unichain-sepolia-testnet"]["chain_id"]
@@ -72,16 +78,20 @@ ALCHEMY_UNICHAIN_SEPOLIA_RPC_URL = config["unichain-sepolia-testnet"]["rpc_url"]
 UNICHAIN_SEPOLIA_ROUTER_ADDRESS = config["unichain-sepolia-testnet"]["uniswap"][
     "contract_deployments"
 ]["universal_router"]
-UNICHAIN_SEPOLIA_WETH9 = config["unichain-sepolia-testnet"]["uniswap"]["tokens"]["weth9"]
+UNICHAIN_SEPOLIA_WETH9 = config["unichain-sepolia-testnet"]["uniswap"]["tokens"][
+    "weth9"
+]
 UNICHAIN_SEPOLIA_USDC = config["unichain-sepolia-testnet"]["uniswap"]["tokens"]["usdc"]
-UNICHAIN_SEPOLIA_ETH_NATIVE = config["unichain-sepolia-testnet"]["uniswap"]["tokens"]["eth_native"]
-UNICHAIN_SEPOLIA_POOL_MANAGER =  config["unichain-sepolia-testnet"]["uniswap"][
+UNICHAIN_SEPOLIA_ETH_NATIVE = config["unichain-sepolia-testnet"]["uniswap"]["tokens"][
+    "eth_native"
+]
+UNICHAIN_SEPOLIA_POOL_MANAGER = config["unichain-sepolia-testnet"]["uniswap"][
     "contract_deployments"
 ]["pool_manager"]
-UNICHAIN_SEPOLIA_STATE_VIEW =  config["unichain-sepolia-testnet"]["uniswap"][
+UNICHAIN_SEPOLIA_STATE_VIEW = config["unichain-sepolia-testnet"]["uniswap"][
     "contract_deployments"
 ]["state_view"]
-UNICHAIN_SEPOLIA_PERMIT2 =  config["unichain-sepolia-testnet"]["uniswap"][
+UNICHAIN_SEPOLIA_PERMIT2 = config["unichain-sepolia-testnet"]["uniswap"][
     "contract_deployments"
 ]["permit2"]
 
