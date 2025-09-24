@@ -8,6 +8,7 @@ from src.config import UNISWAP_PROTOCOL_VERSION
 
 from src.config import (
     ALCHEMY_UNICHAIN_BASE_RPC_URL,
+    ALCHEMY_UNICHAIN_SEPOLIA_RPC_URL,
     ALCHEMY_API_KEY,
 )
 
@@ -15,10 +16,17 @@ from src.config import (
 class BaseUnichainClient(ABC):
     """Base class for Unichain clients"""
 
-    def __init__(self, logger):
-        rpc_url = f"{ALCHEMY_UNICHAIN_BASE_RPC_URL}{ALCHEMY_API_KEY}"
+    def __init__(self, logger, testnet: bool = False):
+        alchemy_base_rpc_url = (
+            ALCHEMY_UNICHAIN_SEPOLIA_RPC_URL
+            if testnet
+            else ALCHEMY_UNICHAIN_BASE_RPC_URL
+        )
+        alchemy_api_key = "" if testnet else ALCHEMY_API_KEY
+        rpc_url = f"{alchemy_base_rpc_url}{alchemy_api_key}"
         self.web3 = Web3(Web3.HTTPProvider(rpc_url))
-        self._check_web3_connection()
+        if not testnet:
+            self._check_web3_connection()  # for testnet always False
         self.logger = logger
         self.is_streaming = False
 

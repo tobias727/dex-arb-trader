@@ -1,4 +1,6 @@
 from unittest.mock import patch, Mock
+import hmac
+import hashlib
 import requests
 import pytest
 from src.config import (
@@ -11,7 +13,7 @@ from tests.utils.dummy_logger import DummyLogger
 class TestBinanceClientRpc:
     """Test for BinanceClientRpc"""
 
-    client = BinanceClientRpc(logger=DummyLogger(), token0_input=1)
+    client = BinanceClientRpc(logger=DummyLogger(), token0_input=1, testnet=True)
 
     @patch("requests.get")
     def test_get_price_success(self, mock_get):
@@ -52,3 +54,51 @@ class TestBinanceClientRpc:
 
         with pytest.raises(SystemExit):
             self.client.get_price()
+
+    def test_sign_payload_correct_signature(self):
+        """Test that the payload is correctly signed"""
+        api_params = "symbol=ETHUSDC&side=BUY&type=MARKET&quantity=0.01&timestamp=1234567890"
+        expected_signature = hmac.new(
+            self.client.binance_api_secret.encode("utf-8"),
+            api_params.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+        expected_result = f"{api_params}&signature={expected_signature}"
+        result = self.client._sign_payload(api_params)
+        assert result == expected_result
+
+    def test_sign_payload_empty_payload(self):
+        """Test signing an empty payload"""
+        api_params = ""
+        expected_signature = hmac.new(
+            self.client.binance_api_secret.encode("utf-8"),
+            api_params.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+        expected_result = f"&signature={expected_signature}"
+        result = self.client._sign_payload(api_params)
+        assert result == expected_result
+
+    @patch("requests.post")
+    def test_execute_trade_success(self, mock_post):
+        """Test successful trade execution"""
+        mock_resp = Mock()
+        mock_resp.raise_for_status.return_value = None  # no exception
+        mock_resp.json.return_value = {"status": "FILLED"}
+        mock_post.return_value = mock_resp
+
+        result = self.client.execute_trade(side="BUY")
+
+        assert result["status"] == "FILLED"
+
+    @patch("requests.post")
+    def test_execute_trade_http_error(self, mock_post):
+        """Test HTTPError exception during execution"""
+        mock_resp = Mock()
+        mock_resp.raise_for_status.side_effect = requests.exceptions.HTTPError(response=Mock(text="Bad Request"))
+        mock_post.return_value = mock_resp
+
+        with pytest.raises(requests.exceptions.HTTPError) as e:
+            self.client.execute_trade(side="BUY")
+
+        assert e.type == requests.exceptions.HTTPError

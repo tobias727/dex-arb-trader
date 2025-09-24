@@ -14,6 +14,7 @@ execution:
 
 binance:
   base_url_rpc: https://api.binance.com
+  base_url_rpc_testnet: https://testnet.binance.vision
   base_url: wss://stream.binance.com:9443
   update_interval: 1000ms # 1000ms or 100ms
   order_book_depth: 10 # 5, 10 or 20

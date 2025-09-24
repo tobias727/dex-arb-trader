@@ -2,9 +2,6 @@ import math
 from src.config import (
     BINANCE_FEE,
     MIN_EDGE,
-    TOKEN0_INPUT,
-    BINANCE_TICK_SIZE,
-    TOKEN1_DECIMALS,
 )
 
 

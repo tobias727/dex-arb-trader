@@ -18,7 +18,9 @@ OUTPUT_DIRECTORY = os.path.join(os.getcwd(), "out")
 ETHERSCAN_API_KEY = os.getenv("ETHERSCAN_API_KEY")
 ALCHEMY_API_KEY = os.getenv("ALCHEMY_API_KEY")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_API_KEY_TESTNET = os.getenv("BINANCE_API_KEY_TESTNET")
 BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
+BINANCE_API_SECRET_TESTNET = os.getenv("BINANCE_API_SECRET_TESTNET")
 WALLET_ADDRESS = os.getenv("WALLET_ADDRESS")
 WALLET_ADDRESS_TESTNET = os.getenv("WALLET_ADDRESS_TESTNET")
 PRIVATE_KEY = os.getenv("PRIVATE_KEY")
@@ -101,6 +103,7 @@ UPDATE_INTERVAL = config["binance"]["update_interval"]
 ORDER_BOOK_DEPTH = config["binance"]["order_book_depth"]
 BINANCE_TOKEN_PAIRS = config["binance"]["token_pairs"]
 BINANCE_BASE_URL_RPC = config["binance"]["base_url_rpc"]
+BINANCE_BASE_URL_RPC_TESTNET = config["binance"]["base_url_rpc_testnet"]
 BINANCE_BASE_URL_WS = config["binance"]["base_url"]
 LATEST = config["latest"]
 
