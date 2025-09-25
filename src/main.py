@@ -6,6 +6,7 @@ from src.engine.detector import Detector
 from src.binance.rpc_client import BinanceClientRpc
 from src.unichain.clients.v4client import UnichainV4Client
 from src.stream_data import load_pools
+from src.utils.utils import elapsed_ms
 from src.config import (
     TOKEN0_INPUT,
 )
@@ -73,24 +74,14 @@ def main():
         # 4. Execute
         if side:
             logger.warning("Detected: %s, %s", side, f"{edge:_}")
-            t4 = time.perf_counter()
             response_binance, receipt_unichain = orchestrator.execute(
-                side, binance, uniswap
+                side, binance, uniswap, iteration_id, start_time
             )
-            t5 = time.perf_counter()
             logger.info(
-                "[#%d] %s Executed both legs successfully [L %.1f ms]\n%s\n\n%s",
+                "[#%d] %s Finished iteration...",
                 iteration_id,
                 elapsed_ms(start_time),
-                (t5 - t4) * 1000,
-                response_binance,
-                receipt_unichain,
             )
-
-
-def elapsed_ms(start_time: float) -> str:
-    """Return elapsed time since start in ms, formatted in brackets."""
-    return f"[ET { (time.perf_counter() - start_time) * 1000:.1f} ms]"
 
 
 def init_clients(logger, testnet: bool = False):

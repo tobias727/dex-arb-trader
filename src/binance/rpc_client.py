@@ -74,9 +74,7 @@ class BinanceClientRpc:
         except requests.exceptions.HTTPError as e:
             self.logger.error(f"❌ Failed to execute trade: {e.response.text}")
             raise
-        data = r.json()
-        self.logger.info(f"✅ Executed Binance {side} order: {data}")
-        return data
+        return r.json()
 
     def _sign_payload(self, api_params: str) -> dict:
         """Signs the request params with API secret"""
