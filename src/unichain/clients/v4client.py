@@ -137,7 +137,7 @@ class UnichainV4Client(BaseUnichainClient):
         """
         if side == "BUY":
             zero_for_one = False
-            amount_in = self.token_in_amount  # ref. to init above
+            amount_in = self.token_in_amount[0]  # ref. to init above
         elif side == "SELL":
             zero_for_one = True
             amount_in = int(TOKEN0_INPUT * 10 ** int(TOKEN0_DECIMALS))  # convert to wei
@@ -213,7 +213,7 @@ class UnichainV4Client(BaseUnichainClient):
             {
                 "from": Web3.to_checksum_address(self.wallet_address),
                 "value": amount_in if zero_for_one else 0,
-                "nonce": self.web3.eth.get_transaction_count(self.wallet_address),
+                "nonce": self.web3.eth.get_transaction_count(self.wallet_address, "pending"),
                 "gas": 1_000_000,  # higher gas limit for swaps
                 "maxFeePerGas": 600_000,
                 "type": "0x2",
