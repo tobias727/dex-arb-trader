@@ -11,7 +11,7 @@ from src.config import (
     TOKEN0_INPUT,
 )
 
-TESTNET = True
+TESTNET = False
 
 
 def main():
@@ -24,9 +24,14 @@ def main():
         4. uniswap execution
     time.perf_counter() is used for latency monitoring
     """
-    logger = setup_logger("trading_bot")
+    out_log_name = "trading_bot" if TESTNET else "trading_bot_LIVE"
+    logger = setup_logger(out_log_name)
     binance, uniswap, orchestrator, detector = init_clients(logger, testnet=TESTNET)
+    log_balances(binance, uniswap, logger, TESTNET)
     iteration_id = 0
+
+    # in live mode, only execute once to test
+    has_executed = False
 
     while True:
         iteration_id += 1
@@ -59,7 +64,7 @@ def main():
                 (t3 - t2) * 1000,
             )
         # Graceful retry for quoting connection error
-        except ConnectionError as e:
+        except Exception as e:
             logger.error("Iteration skipped due to data fetch error: %s", e)
             continue
 
@@ -72,16 +77,44 @@ def main():
         )
 
         # 4. Execute
-        if side:
+        if side and not has_executed:
             logger.warning("Detected: %s, %s", side, f"{edge:_}")
             response_binance, receipt_unichain = orchestrator.execute(
                 side, binance, uniswap, iteration_id, start_time
             )
+            if not TESTNET:  # only do one trade for now for LIVE
+                has_executed = True
             logger.info(
                 "[#%d] %s Finished iteration...",
                 iteration_id,
                 elapsed_ms(start_time),
             )
+            log_balances(binance, uniswap, logger, TESTNET)
+
+
+def log_balances(
+    binance: BinanceClientRpc, uniswap: UnichainV4Client, logger, testnet: bool = False
+):
+    """Logs Balances for Binance and Unichain"""
+    testnet_flag = "[TESTNET] " if testnet else ""
+    try:
+        balance_eth, balance_usdc = binance.get_account_info()
+        logger.info(
+            testnet_flag + "BALANCES BINANCE: ETH %s, USDC %s",
+            balance_eth,
+            balance_usdc,
+        )
+    except Exception as e:
+        logger.error(testnet_flag + "Failed to load Binance balances: %s", e)
+    try:
+        balance_eth, balance_usdc = uniswap.get_balances()
+        logger.info(
+            testnet_flag + "BALANCES UNISWAP: ETH %s, USDC %s",
+            balance_eth,
+            balance_usdc,
+        )
+    except Exception as e:
+        logger.error(testnet_flag + "Failed to load Unichain balances: %s", e)
 
 
 def init_clients(logger, testnet: bool = False):

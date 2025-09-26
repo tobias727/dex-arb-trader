@@ -26,10 +26,47 @@ class BinanceClientRpc:
         self.token0_input = token0_input
         # handle values for testnet and mainnet, only for execution
         self.binance_rpc_url_trade = f"{BINANCE_BASE_URL_RPC_TESTNET if testnet else BINANCE_BASE_URL_RPC}/api/v3/order"
+        self.binance_rpc_url_account = f"{BINANCE_BASE_URL_RPC_TESTNET if testnet else BINANCE_BASE_URL_RPC}/api/v3/account"
         self.binance_api_key = BINANCE_API_KEY_TESTNET if testnet else BINANCE_API_KEY
         self.binance_api_secret = (
             BINANCE_API_SECRET_TESTNET if testnet else BINANCE_API_SECRET
         )
+
+    def get_account_info(self):
+        """Returns"""
+        api_params = f"timestamp={int(time.time()*1000)}"
+        signed_params = self._sign_payload(api_params)
+
+        headers = {"X-MBX-APIKEY": self.binance_api_key}
+
+        try:
+            r = requests.get(
+                self.binance_rpc_url_account,
+                headers=headers,
+                params=signed_params,
+                timeout=10,
+            )
+            r.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            self.logger.error(f"❌ Failed to load account info: {e.response.text}")
+            raise
+
+        account_data = r.json()
+        balance_eth = None
+        balance_usdc = None
+        for balance in account_data["balances"]:
+            asset = balance.get("asset")
+            free_amount = balance.get("free")
+            locked_amount = balance.get("locked")
+            if asset == "ETH":
+                balance_eth = free_amount
+                if float(locked_amount) > 0:
+                    self.logger.warning(
+                        "Locked funds in Binance for Asset ETH: %s", locked_amount
+                    )
+            elif asset == "USDC":
+                balance_usdc = free_amount
+        return balance_eth, balance_usdc
 
     def get_price(self):
         """Returns top of the order book (int(bid), int(ask))"""

@@ -97,6 +97,31 @@ class UnichainV4Client(BaseUnichainClient):
             [0x06, 0x0C, 0x0F],  # Actions: SWAP_EXACT_IN_SINGLE, SETTLE_ALL, TAKE_ALL
         )
 
+    def get_balances(self):
+        """Returns balances for USDC and ETH"""
+        try:
+            erc20_abi = [
+                {
+                    "name": "balanceOf",
+                    "type": "function",
+                    "inputs": [{"name": "account", "type": "address"}],
+                    "outputs": [{"name": "balance", "type": "uint256"}],
+                    "stateMutability": "view",
+                }
+            ]
+            usdc_contract = self.web3.eth.contract(
+                address=self.unichain_usdc_address, abi=erc20_abi
+            )
+            balance_wei = self.web3.eth.get_balance(self.wallet_address)
+            balance_eth = self.web3.from_wei(balance_wei, "ether")
+            balance_usdc = (
+                usdc_contract.functions.balanceOf(self.wallet_address).call()
+                / 10**TOKEN1_DECIMALS
+            )  # scale
+            return balance_eth, balance_usdc
+        except Exception as e:
+            raise RuntimeError(f"Couldn't load balances...: {str(e)}") from e
+
     def estimate_swap_price(self):
         """Returns {"bid":bid, "ask":ask} for active trading pair (notional values)"""
         input_amount = int(TOKEN0_INPUT * 10 ** int(TOKEN0_DECIMALS))  # convert to wei
@@ -213,7 +238,9 @@ class UnichainV4Client(BaseUnichainClient):
             {
                 "from": Web3.to_checksum_address(self.wallet_address),
                 "value": amount_in if zero_for_one else 0,
-                "nonce": self.web3.eth.get_transaction_count(self.wallet_address, "pending"),
+                "nonce": self.web3.eth.get_transaction_count(
+                    self.wallet_address, "pending"
+                ),
                 "gas": 1_000_000,  # higher gas limit for swaps
                 "maxFeePerGas": 600_000,
                 "type": "0x2",

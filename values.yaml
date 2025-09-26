@@ -5,11 +5,11 @@ execution:
   active_trading_pair: ETHUSDC
   active_token0: ETH
   active_token1: USDC
-  token0_input: 0.001 # ETH
+  token0_input: 0.01 # ETH
   token0_decimals: 18
   token1_decimals: 6
   binance_fee: 0.001 # https://www.binance.com/en/fee/trading
-  min_edge: 0.0000000001
+  min_edge: 10_000 # 1 cent
   binance_tick_size: 0.01 # 1 cent
 
 binance:
