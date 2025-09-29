@@ -6,12 +6,13 @@ from src.engine.detector import Detector
 from src.binance.rpc_client import BinanceClientRpc
 from src.unichain.clients.v4client import UnichainV4Client
 from src.stream_data import load_pools
-from src.utils.utils import elapsed_ms
+from src.utils.utils import elapsed_ms, check_pre_conditions
+from src.utils.types import NotionalValues
 from src.config import (
     TOKEN0_INPUT,
 )
 
-TESTNET = False
+TESTNET = True
 
 
 def main():
@@ -27,8 +28,9 @@ def main():
     out_log_name = "trading_bot" if TESTNET else "trading_bot_LIVE"
     logger = setup_logger(out_log_name)
     binance, uniswap, orchestrator, detector = init_clients(logger, testnet=TESTNET)
-    log_balances(binance, uniswap, logger, TESTNET)
-    iteration_id = 0
+    balances = log_balances(binance, uniswap, logger, TESTNET)
+    iteration_id = 0  # TODO: get from file and append
+    # TODO: check if permit2 approval is set (> ? )
 
     # in live mode, only execute once to test
     has_executed = False
@@ -69,18 +71,28 @@ def main():
             continue
 
         # 3. Detect
-        side, edge = detector.detect(
+        notional = NotionalValues(
             binance_bid_notional,
             binance_ask_notional,
             uniswap_bid_notional[0],
             uniswap_ask_notional[0],
         )
+        b_side, u_side, edge = detector.detect(notional)
 
         # 4. Execute
-        if side and not has_executed:
-            logger.warning("Detected: %s, %s", side, f"{edge:_}")
+        if edge and not has_executed:
+            logger.warning("Detected: %s, CEX_%s_DEX, %s", b_side, u_side, f"{edge:_}")
+            # quit if balances too low
+            check_pre_conditions(
+                logger,
+                balances,
+                b_side,
+                u_side,
+                notional,
+                buffer=1.01,
+            )
             response_binance, receipt_unichain = orchestrator.execute(
-                side, binance, uniswap, iteration_id, start_time
+                b_side, u_side, binance, uniswap, iteration_id, start_time
             )
             if not TESTNET:  # only do one trade for now for LIVE
                 has_executed = True
@@ -89,7 +101,7 @@ def main():
                 iteration_id,
                 elapsed_ms(start_time),
             )
-            log_balances(binance, uniswap, logger, TESTNET)
+            balances = log_balances(binance, uniswap, logger, TESTNET)
 
 
 def log_balances(
@@ -97,24 +109,22 @@ def log_balances(
 ):
     """Logs Balances for Binance and Unichain"""
     testnet_flag = "[TESTNET] " if testnet else ""
-    try:
-        balance_eth, balance_usdc = binance.get_account_info()
-        logger.info(
-            testnet_flag + "BALANCES BINANCE: ETH %s, USDC %s",
-            balance_eth,
-            balance_usdc,
-        )
-    except Exception as e:
-        logger.error(testnet_flag + "Failed to load Binance balances: %s", e)
-    try:
-        balance_eth, balance_usdc = uniswap.get_balances()
-        logger.info(
-            testnet_flag + "BALANCES UNISWAP: ETH %s, USDC %s",
-            balance_eth,
-            balance_usdc,
-        )
-    except Exception as e:
-        logger.error(testnet_flag + "Failed to load Unichain balances: %s", e)
+    b_eth, b_usdc = binance.get_account_info()
+    logger.info(
+        testnet_flag + "BALANCES BINANCE: ETH %s, USDC %s",
+        b_eth,
+        b_usdc,
+    )
+    u_eth, u_usdc = uniswap.get_balances()
+    logger.info(
+        testnet_flag + "BALANCES UNISWAP: ETH %s, USDC %s",
+        u_eth,
+        u_usdc,
+    )
+    return {
+        "binance": {"ETH": b_eth, "USDC": b_usdc},
+        "uniswap": {"ETH": u_eth, "USDC": u_usdc},
+    }
 
 
 def init_clients(logger, testnet: bool = False):

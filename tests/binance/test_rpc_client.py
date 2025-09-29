@@ -57,11 +57,13 @@ class TestBinanceClientRpc:
 
     def test_sign_payload_correct_signature(self):
         """Test that the payload is correctly signed"""
-        api_params = "symbol=ETHUSDC&side=BUY&type=MARKET&quantity=0.01&timestamp=1234567890"
+        api_params = (
+            "symbol=ETHUSDC&side=BUY&type=MARKET&quantity=0.01&timestamp=1234567890"
+        )
         expected_signature = hmac.new(
             self.client.binance_api_secret.encode("utf-8"),
             api_params.encode("utf-8"),
-            hashlib.sha256
+            hashlib.sha256,
         ).hexdigest()
         expected_result = f"{api_params}&signature={expected_signature}"
         result = self.client._sign_payload(api_params)
@@ -73,7 +75,7 @@ class TestBinanceClientRpc:
         expected_signature = hmac.new(
             self.client.binance_api_secret.encode("utf-8"),
             api_params.encode("utf-8"),
-            hashlib.sha256
+            hashlib.sha256,
         ).hexdigest()
         expected_result = f"&signature={expected_signature}"
         result = self.client._sign_payload(api_params)
@@ -95,7 +97,9 @@ class TestBinanceClientRpc:
     def test_execute_trade_http_error(self, mock_post):
         """Test HTTPError exception during execution"""
         mock_resp = Mock()
-        mock_resp.raise_for_status.side_effect = requests.exceptions.HTTPError(response=Mock(text="Bad Request"))
+        mock_resp.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            response=Mock(text="Bad Request")
+        )
         mock_post.return_value = mock_resp
 
         with pytest.raises(requests.exceptions.HTTPError) as e:
