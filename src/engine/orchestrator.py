@@ -23,6 +23,7 @@ class Orchestrator:
         """
         Executes first CEX, then DEX for minimal slippage
         """
+
         def _execute_cex_leg():
             t4 = time.perf_counter()
             response_binance = binance.execute_trade(b_side)
@@ -35,18 +36,12 @@ class Orchestrator:
                 response_binance["fills"],
                 (t5 - t4) * 1000,
             )
-            if response_binance["status"] != "FILLED":
-                self.logger.warning("Unexpected Binance status: %s", response_binance)
-                raise RuntimeError("Binance leg failed")
             return response_binance
 
         def _execute_dex_leg():
             t6 = time.perf_counter()
             receipt_uniswap = uniswap.execute_trade(u_side)
             t7 = time.perf_counter()
-            if receipt_uniswap.status != 1:
-                self.logger.warning("Unexpected Uniswap receipt: %s", receipt_uniswap)
-                raise RuntimeError("Uniswap leg failed")
             self.logger.info(
                 "[#%d] %s Executed Uniswap %s: %s [L %.1f ms]",
                 iteration_id,
@@ -57,11 +52,38 @@ class Orchestrator:
             )
             return receipt_uniswap
 
+        def _rollback_successful_trade(side: str, client):
+            """Rolls back a successful trade if the other leg fails."""
+            self.logger.info("Rolling back successful trade...")
+            # TODO: implement
+
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_binance = executor.submit(_execute_cex_leg)
             future_uniswap = executor.submit(_execute_dex_leg)
 
-            response_binance = future_binance.result()
-            receipt_uniswap = future_uniswap.result()
+            try:
+                response_binance = future_binance.result()
+            except Exception as e:
+                self.logger.error("Error executing Binance leg: %s", e)
 
-        return response_binance, receipt_uniswap
+            try:
+                receipt_uniswap = future_uniswap.result()
+            except Exception as e:
+                self.logger.error("Error executing Uniswap leg: %s", e)
+
+        # handle partial execution
+        if (
+            response_binance
+            and response_binance["status"] == "FILLED"
+            and (not receipt_uniswap or receipt_uniswap.status != 1)
+        ):
+            self.logger.warning("Uniswap leg failed. Rolling back Binance leg.")
+            _rollback_successful_trade(b_side, binance)
+
+        elif (
+            receipt_uniswap
+            and receipt_uniswap.status == 1
+            and (not response_binance or response_binance["status"] != "FILLED")
+        ):
+            self.logger.warning("Binance leg failed. Rolling back Uniswap leg.")
+            _rollback_successful_trade(u_side, uniswap)

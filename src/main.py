@@ -58,11 +58,14 @@ def main():
                 quotes,
                 buffer=1.01,
             )
-            _response_binance, _receipt_unichain = orchestrator.execute(
+
+            orchestrator.execute(
                 b_side, u_side, binance, uniswap, iteration_id, start_time
             )
+
             if not TESTNET:  # only do one trade for now for LIVE
                 has_executed = True
+
             logger.info(
                 "[#%d] %s Finished iteration...",
                 iteration_id,
