@@ -1,3 +1,4 @@
+from unittest import mock
 from tests.utils.dummy_logger import DummyLogger
 from src.engine.detector import Detector
 from src.utils.types import NotionalValues
@@ -8,6 +9,7 @@ class TestDetector:
 
     detector = Detector(DummyLogger())
 
+    @mock.patch("src.engine.detector.MIN_EDGE", 10_000)
     def test_detect_no_opp1(self):
         """Test for no opp scenario"""
         notional = NotionalValues(
@@ -22,6 +24,7 @@ class TestDetector:
         assert u_side is None
         assert edge is None
 
+    @mock.patch("src.engine.detector.MIN_EDGE", 10_000)
     def test_detect_no_opp2(self):
         """Test for no opp scenario when b_ask < u_bid, but fees eats opp"""
         notional = NotionalValues(
@@ -37,6 +40,7 @@ class TestDetector:
         assert u_side is None
         assert edge is None
 
+    @mock.patch("src.engine.detector.MIN_EDGE", 10_000)
     def test_detect_no_opp3(self):
         """Test for no opp scenario when b_bid > u_ask, but fees eats opp"""
         notional = NotionalValues(
@@ -52,6 +56,7 @@ class TestDetector:
         assert u_side is None
         assert edge is None
 
+    @mock.patch("src.engine.detector.MIN_EDGE", 10_000)
     def test_detect_opp1(self):
         """CEX buy, DEX sell Opp"""
         notional = NotionalValues(
@@ -67,6 +72,7 @@ class TestDetector:
         assert u_side is not None
         assert edge is not None
 
+    @mock.patch("src.engine.detector.MIN_EDGE", 10_000)
     def test_detect_opp2(self):
         """CEX sell, DEX buy Opp"""
         notional = NotionalValues(
@@ -82,6 +88,7 @@ class TestDetector:
         assert u_side is not None
         assert edge is not None
 
+    @mock.patch("src.engine.detector.MIN_EDGE", 1)
     def test_edge_case1(self):
         """very small notionals"""
         notional = NotionalValues(

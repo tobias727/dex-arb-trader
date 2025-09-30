@@ -12,6 +12,7 @@ from src.config import (
     ACTIVE_TRADING_PAIR,
     TOKEN1_DECIMALS,
     BINANCE_BASE_URL_RPC_TESTNET,
+    BINANCE_FEE,
 )
 
 
@@ -84,10 +85,12 @@ class BinanceClientRpc:
         data = r.json()
         bid_notional = int(
             (float(data["bids"][0][0]) * 10**TOKEN1_DECIMALS) * float(self.token0_input)
-        )  # (price in smallest unit) // token0_input
+        ) * (
+            1 - BINANCE_FEE
+        )  # adjusted after fee
         ask_notional = int(
             (float(data["asks"][0][0]) * 10**TOKEN1_DECIMALS) * float(self.token0_input)
-        )
+        ) * (1 + BINANCE_FEE)
         return bid_notional, ask_notional
 
     def execute_trade(self, side: str, symbol: str = ACTIVE_TRADING_PAIR):

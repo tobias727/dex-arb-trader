@@ -135,7 +135,7 @@ class UnichainV4Client(BaseUnichainClient):
         fee_tier = int(pool["feeTier"])
         tick_spacing = int(pool["tickSpacing"])
 
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=2) as executor:
             future_out = executor.submit(
                 get_amounts_out,
                 self.logger,

@@ -1,5 +1,6 @@
 import os
 import logging
+from concurrent.futures import ThreadPoolExecutor
 import time
 from src.engine.orchestrator import Orchestrator
 from src.engine.detector import Detector
@@ -19,10 +20,9 @@ def main():
     """
     Entrypoint for trading bot
     Execution pattern is:
-        1. uniswap quote,
-        2. binance quote,
-        3. binance execution,
-        4. uniswap execution
+        1. binance + uniswap quote,
+        2. binance execution,
+        3. uniswap execution
     time.perf_counter() is used for latency monitoring
     """
     out_log_name = "trading_bot" if TESTNET else "trading_bot_LIVE"
@@ -38,48 +38,16 @@ def main():
     while True:
         iteration_id += 1
         start_time = time.perf_counter()
-        try:
-            # 1. Uniswap quote
-            t0 = time.perf_counter()
-            uniswap_bid_notional, uniswap_ask_notional = (
-                uniswap.estimate_swap_price()
-            )  # returns [price, gas]
-            t1 = time.perf_counter()
-            logger.info(
-                "[#%d] %s Uniswap: %s, %s [L %.1f ms]",
-                iteration_id,
-                elapsed_ms(start_time),
-                f"{uniswap_bid_notional[0]:_}",
-                f"{uniswap_ask_notional[0]:_}",
-                (t1 - t0) * 1000,
-            )
-            # 2. Binance quote
-            t2 = time.perf_counter()
-            binance_bid_notional, binance_ask_notional = binance.get_price()
-            t3 = time.perf_counter()
-            logger.info(
-                "[#%d] %s Binance: %s, %s [L %.1f ms]",
-                iteration_id,
-                elapsed_ms(start_time),
-                f"{binance_bid_notional:_}",
-                f"{binance_ask_notional:_}",
-                (t3 - t2) * 1000,
-            )
-        # Graceful retry for quoting connection error
-        except Exception as e:
-            logger.error("Iteration skipped due to data fetch error: %s", e)
-            continue
 
-        # 3. Detect
-        notional = NotionalValues(
-            binance_bid_notional,
-            binance_ask_notional,
-            uniswap_bid_notional[0],
-            uniswap_ask_notional[0],
-        )
-        b_side, u_side, edge = detector.detect(notional)
+        # 1. Get Binance/Uniswap quotes
+        quotes = get_quotes(logger, iteration_id, start_time, uniswap, binance)
+        if quotes is None:
+            continue  # skip if iteration is failed
 
-        # 4. Execute
+        # 2. Detect
+        b_side, u_side, edge = detector.detect(quotes)
+
+        # 3. Execute
         if edge and not has_executed:
             logger.warning("Detected: %s, CEX_%s_DEX, %s", b_side, u_side, f"{edge:_}")
             # quit if balances too low
@@ -88,7 +56,7 @@ def main():
                 balances,
                 b_side,
                 u_side,
-                notional,
+                quotes,
                 buffer=1.01,
             )
             _response_binance, _receipt_unichain = orchestrator.execute(
@@ -104,8 +72,69 @@ def main():
             balances = log_balances(binance, uniswap, logger, TESTNET)
 
 
+def get_quotes(
+    logger: logging.Logger,
+    iteration_id,
+    start_time,
+    uniswap: UnichainV4Client,
+    binance: BinanceClientRpc,
+) -> NotionalValues:
+    """Fetch quotes from Uniswap and Binance"""
+
+    def _fetch_uniswap():
+        t0 = time.perf_counter()
+        uniswap_bid_notional, uniswap_ask_notional = (
+            uniswap.estimate_swap_price()
+        )  # returns [price, gas]
+        t1 = time.perf_counter()
+        logger.info(
+            "[#%d] %s Uniswap: %s, %s [L %.1f ms]",
+            iteration_id,
+            elapsed_ms(start_time),
+            f"{uniswap_bid_notional[0]:_}",
+            f"{uniswap_ask_notional[0]:_}",
+            (t1 - t0) * 1000,
+        )
+        return uniswap_bid_notional, uniswap_ask_notional
+
+    def _fetch_binance():
+        t2 = time.perf_counter()
+        binance_bid_notional, binance_ask_notional = binance.get_price()
+        t3 = time.perf_counter()
+        logger.info(
+            "[#%d] %s Binance: %s, %s [L %.1f ms]",
+            iteration_id,
+            elapsed_ms(start_time),
+            f"{binance_bid_notional:_}",
+            f"{binance_ask_notional:_}",
+            (t3 - t2) * 1000,
+        )
+        return binance_bid_notional, binance_ask_notional
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_uniswap = executor.submit(_fetch_uniswap)
+            future_binance = executor.submit(_fetch_binance)
+
+            u_bid, u_ask = future_uniswap.result()
+            b_bid, b_ask = future_binance.result()
+
+        return NotionalValues(
+            b_bid,
+            b_ask,
+            u_bid[0],
+            u_ask[0],
+        )
+    except Exception as e:
+        logger.error("Iteration skipped due to data fetch error: %s", e)
+        return None
+
+
 def log_balances(
-    binance: BinanceClientRpc, uniswap: UnichainV4Client, logger, testnet: bool = False
+    binance: BinanceClientRpc,
+    uniswap: UnichainV4Client,
+    logger: logging.Logger,
+    testnet: bool = False,
 ):
     """Logs Balances for Binance and Unichain"""
     testnet_flag = "[TESTNET] " if testnet else ""
@@ -127,7 +156,7 @@ def log_balances(
     }
 
 
-def init_clients(logger, testnet: bool = False):
+def init_clients(logger: logging.Logger, testnet: bool = False):
     """Initializes clients"""
     binance = BinanceClientRpc(logger, TOKEN0_INPUT, testnet)
     pools = load_pools("unichain_v4_pools.json")
