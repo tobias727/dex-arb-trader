@@ -36,7 +36,7 @@ def check_pre_conditions(
 
     # Binance check
     needed_token = token_map[b_side]
-    if balances["binance"][needed_token] < required["binance"][b_side]:
+    if float(balances["binance"][needed_token]) < required["binance"][b_side]:
         message = (
             f"Binance {needed_token} insufficient: "
             f"Required: {required['binance'][b_side]}, "
@@ -47,7 +47,7 @@ def check_pre_conditions(
 
     # Uniswap check
     needed_token = token_map[u_side]
-    if balances["uniswap"][needed_token] < required["uniswap"][u_side]:
+    if float(balances["uniswap"][needed_token]) < required["uniswap"][u_side]:
         message = (
             f"Uniswap {needed_token} insufficient: "
             f"Required: {required['uniswap'][u_side]}, "

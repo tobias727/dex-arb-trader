@@ -1,7 +1,11 @@
+import sys
 from web3 import Web3
+from requests.exceptions import HTTPError
+from src.utils.exceptions import QuoteError
 
 
 def get_amounts_out(
+    logger,
     v4_quoter_contract,
     token_in: str,
     token_out: str,
@@ -30,16 +34,22 @@ def get_amounts_out(
             int(amount_token0),  # exactAmount (uint128)
             b"",  # hookData (bytes)
         )
-        token_1_amount = v4_quoter_contract.functions.quoteExactInputSingle(
+        return v4_quoter_contract.functions.quoteExactInputSingle(
             quote_input_params
         ).call()
-        return token_1_amount
+
+    except HTTPError as e:
+        if e.response is not None and e.response.status_code == 429:
+            logger.error("❌ UNICHAIN: Rate limit hit (429), stopping bot!")
+            sys.exit(1)
+        raise QuoteError(f"Unexpected HTTP error in get_amounts_out: {e}") from e
+
     except Exception as e:
-        print(f"Error in get_amounts_out: {e}")
-        return None
+        raise QuoteError(f"Error in get_amounts_out: {e}") from e
 
 
 def get_amounts_in(
+    logger,
     v4_quoter_contract,
     token_in: str,
     token_out: str,
@@ -68,12 +78,15 @@ def get_amounts_in(
             exact_amount_token0,  # exactAmount (uint128)
             b"",  # hookData (bytes)
         )
-        token_1_amount = v4_quoter_contract.functions.quoteExactOutputSingle(
+        return v4_quoter_contract.functions.quoteExactOutputSingle(
             quote_output_params
         ).call()
-        return token_1_amount
+
+    except HTTPError as e:
+        if e.response is not None and e.response.status_code == 429:
+            logger.error("❌ UNICHAIN: Rate limit hit (429), stopping bot!")
+            sys.exit(1)
+        raise QuoteError(f"Unexpected HTTP error in get_amounts_out: {e}") from e
+
     except Exception as e:
-        print(
-            f"Error in get_amounts_in: {e} +\n\n quote_output_params: {quote_output_params}\n\n"
-        )
-        return None
+        raise QuoteError(f"Error in get_amounts_out: {e}") from e

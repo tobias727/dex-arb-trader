@@ -1,4 +1,5 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from web3 import Web3
 from eth_abi import encode
 from eth_abi.packed import encode_packed
@@ -136,23 +137,31 @@ class UnichainV4Client(BaseUnichainClient):
         fee_tier = int(pool["feeTier"])
         tick_spacing = int(pool["tickSpacing"])
 
-        token_out_amount = get_amounts_out(
-            self.uniswap_v4_quoter_contract,
-            token0_id,
-            token1_id,
-            input_amount,
-            fee_tier,
-            tick_spacing,
-        )
+        with ThreadPoolExecutor() as executor:
+            future_out = executor.submit(
+                get_amounts_out,
+                self.logger,
+                self.uniswap_v4_quoter_contract,
+                token0_id,
+                token1_id,
+                input_amount,
+                fee_tier,
+                tick_spacing,
+            )
+            future_in = executor.submit(
+                get_amounts_in,
+                self.logger,
+                self.uniswap_v4_quoter_contract,
+                token0_id,
+                token1_id,
+                input_amount,
+                fee_tier,
+                tick_spacing,
+            )
 
-        self.token_in_amount = get_amounts_in(
-            self.uniswap_v4_quoter_contract,
-            token0_id,
-            token1_id,
-            input_amount,
-            fee_tier,
-            tick_spacing,
-        )
+            token_out_amount = future_out.result()
+            self.token_in_amount = future_in.result()
+
         return (token_out_amount, self.token_in_amount)  # (bid, ask)
 
     def execute_trade(self, side):
