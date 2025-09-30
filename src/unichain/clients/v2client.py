@@ -1,4 +1,3 @@
-from typing import List
 from src.unichain.helpers.uniswap_v2_helper import get_amounts_out, get_amounts_in
 from src.utils.retrieve_abi import load_contract
 from src.unichain.clients.base_client import BaseUnichainClient

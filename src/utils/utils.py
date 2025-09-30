@@ -1,4 +1,3 @@
-import sys
 import time
 from src.utils.types import NotionalValues
 from src.config import (
@@ -13,7 +12,7 @@ def elapsed_ms(start_time: float) -> str:
     return f"[ET { (time.perf_counter() - start_time) * 1000:.1f} ms]"
 
 
-def check_pre_conditions(
+def check_pre_trade(
     logger,
     balances: dict,
     b_side: str,

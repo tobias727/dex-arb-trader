@@ -1,5 +1,5 @@
 import pytest
-from src.utils.utils import check_pre_conditions
+from src.utils.utils import check_pre_trade
 from src.utils.types import NotionalValues
 from src.utils.exceptions import InsufficientBalanceError
 from tests.utils.dummy_logger import DummyLogger
@@ -12,7 +12,7 @@ class TestUtils:
         b_bid=41_000_000, b_ask=41_000_100, u_bid=41_500_000, u_ask=41_600_000
     )
 
-    def test_check_pre_conditions_sufficient_balances(self):
+    def test_check_pre_trade_sufficient_balances(self):
         """Test for sufficient balances"""
         logger = DummyLogger()
         balances = {
@@ -24,10 +24,10 @@ class TestUtils:
         buffer = 1.01
 
         # no exceptions expected
-        check_pre_conditions(logger, balances, b_side, u_side, self.notional, buffer)
+        check_pre_trade(logger, balances, b_side, u_side, self.notional, buffer)
         assert len(logger.get_logs("error")) == 0, "There should be no errors logged."
 
-    def test_check_pre_conditions_binance_insufficient_balance(self):
+    def test_check_pre_trade_binance_insufficient_balance(self):
         """Test for insufficient USDC on Binance for BUY."""
         logger = DummyLogger()
         balances = {
@@ -39,7 +39,7 @@ class TestUtils:
         buffer = 1.01
 
         with pytest.raises(InsufficientBalanceError) as exc_info:
-            check_pre_conditions(
+            check_pre_trade(
                 logger, balances, b_side, u_side, self.notional, buffer
             )
 
@@ -50,7 +50,7 @@ class TestUtils:
         assert len(logger.get_logs("error")) == 1, "An error should be logged."
         assert "Binance USDC insufficient" in logger.get_last_log("error")
 
-    def test_check_pre_conditions_uniswap_insufficient_balance(self):
+    def test_check_pre_trade_uniswap_insufficient_balance(self):
         """Test for insufficient ETH on Uniswap for SELL."""
         logger = DummyLogger()
         balances = {
@@ -62,7 +62,7 @@ class TestUtils:
         buffer = 1.01
 
         with pytest.raises(InsufficientBalanceError) as exc_info:
-            check_pre_conditions(
+            check_pre_trade(
                 logger, balances, b_side, u_side, self.notional, buffer
             )
 
@@ -73,7 +73,7 @@ class TestUtils:
         assert len(logger.get_logs("error")) == 1, "An error should be logged."
         assert "Uniswap ETH insufficient" in logger.get_last_log("error")
 
-    def test_check_pre_conditions_custom_buffer(self):
+    def test_check_pre_trade_custom_buffer(self):
         """Test for custom buffer with sufficient balances."""
         logger = DummyLogger()
         balances = {
@@ -85,7 +85,7 @@ class TestUtils:
         buffer = 1.1  # Custom buffer
 
         # No exceptions expected
-        check_pre_conditions(logger, balances, b_side, u_side, self.notional, buffer)
+        check_pre_trade(logger, balances, b_side, u_side, self.notional, buffer)
 
         # Ensure no errors are logged
         assert len(logger.get_logs("error")) == 0, "There should be no errors logged."

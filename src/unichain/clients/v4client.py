@@ -7,9 +7,7 @@ from src.unichain.helpers.uniswap_v4_helper import get_amounts_out, get_amounts_
 from src.utils.retrieve_abi import load_contract
 from src.unichain.clients.base_client import BaseUnichainClient
 from src.utils.retrieve_abi import (
-    load_abi,
     validate_contract_address,
-    save_abi_to_file,
     load_abi_if_not_exist,
 )
 from src.config import (

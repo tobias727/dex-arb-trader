@@ -6,7 +6,7 @@ from src.engine.detector import Detector
 from src.binance.rpc_client import BinanceClientRpc
 from src.unichain.clients.v4client import UnichainV4Client
 from src.stream_data import load_pools
-from src.utils.utils import elapsed_ms, check_pre_conditions
+from src.utils.utils import elapsed_ms, check_pre_trade
 from src.utils.types import NotionalValues
 from src.config import (
     TOKEN0_INPUT,
@@ -83,7 +83,7 @@ def main():
         if edge and not has_executed:
             logger.warning("Detected: %s, CEX_%s_DEX, %s", b_side, u_side, f"{edge:_}")
             # quit if balances too low
-            check_pre_conditions(
+            check_pre_trade(
                 logger,
                 balances,
                 b_side,
@@ -91,7 +91,7 @@ def main():
                 notional,
                 buffer=1.01,
             )
-            response_binance, receipt_unichain = orchestrator.execute(
+            _response_binance, _receipt_unichain = orchestrator.execute(
                 b_side, u_side, binance, uniswap, iteration_id, start_time
             )
             if not TESTNET:  # only do one trade for now for LIVE
