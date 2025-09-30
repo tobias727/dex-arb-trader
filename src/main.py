@@ -21,8 +21,7 @@ def main():
     Entrypoint for trading bot
     Execution pattern is:
         1. binance + uniswap quote,
-        2. binance execution,
-        3. uniswap execution
+        2. binance + uniswap execution,
     time.perf_counter() is used for latency monitoring
     """
     out_log_name = "trading_bot" if TESTNET else "trading_bot_LIVE"
