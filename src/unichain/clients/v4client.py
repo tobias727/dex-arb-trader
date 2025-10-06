@@ -162,7 +162,7 @@ class UnichainV4Client(BaseUnichainClient):
 
         return (token_out_amount, self.token_in_amount)  # (bid, ask)
 
-    def execute_trade(self, side):
+    def execute_trade(self, side, manual_amount = None):
         """
         Executes uniswap leg
         Returns full tx receipt as dict
@@ -175,6 +175,10 @@ class UnichainV4Client(BaseUnichainClient):
             amount_in = int(TOKEN0_INPUT * 10 ** int(TOKEN0_DECIMALS))  # convert to wei
         else:
             raise ValueError(f"Side invalid: '{side}'")
+
+        # execute function manually
+        if manual_amount:
+            amount_in = manual_amount
 
         if amount_in is None:
             raise ValueError("No value for amount_in")

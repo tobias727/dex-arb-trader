@@ -53,13 +53,16 @@ class Orchestrator:
             return receipt_uniswap
 
         def _rollback_successful_trade(side: str, client):
-            """Rolls back a successful trade if the other leg fails."""
+            """Rolls back a successful trade if the other leg fails"""
             self.logger.info("Rolling back successful trade...")
             # TODO: implement
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_binance = executor.submit(_execute_cex_leg)
             future_uniswap = executor.submit(_execute_dex_leg)
+
+            response_binance = None
+            receipt_uniswap = None
 
             try:
                 response_binance = future_binance.result()

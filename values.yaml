@@ -9,8 +9,9 @@ execution:
   token0_decimals: 18
   token1_decimals: 6
   binance_fee: 0.00095 # https://www.binance.com/en/fee/trading
-  min_edge: 50_000 # 1 cent # 10_000
+  min_edge: 100_000 # 1 cent = 10_000
   binance_tick_size: 0.01 # 1 cent
+  gas_reserve: 0.000001 # ensuring enough gas left for swaps
 
 binance:
   base_url_rpc: https://api.binance.com

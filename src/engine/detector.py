@@ -17,10 +17,12 @@ class Detector:
         """
         edge = notional.u_bid - notional.b_ask
         if edge > MIN_EDGE:
-            return "BUY", "SELL", edge  # CEX buy, DEX sell
+            self.logger.warning("Detected: CEX_buy_DEX_sell, %s", f"{edge:_}")
+            return "BUY", "SELL", edge
 
         edge = notional.b_bid - notional.u_ask
         if edge > MIN_EDGE:
-            return "SELL", "BUY", edge  # CEX sell, DEX buy
+            self.logger.warning("Detected: CEX_sell_DEX_buy, %s", f"{edge:_}")
+            return "SELL", "BUY", edge
 
         return None, None, None  # no opps

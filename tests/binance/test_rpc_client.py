@@ -5,6 +5,7 @@ import requests
 import pytest
 from src.config import (
     TOKEN1_DECIMALS,
+    BINANCE_FEE,
 )
 from src.binance.rpc_client import BinanceClientRpc
 from tests.utils.dummy_logger import DummyLogger
@@ -28,9 +29,12 @@ class TestBinanceClientRpc:
 
         bid, ask = self.client.get_price()
 
+        expected_notional_bid = int((100.12345678 * 10**TOKEN1_DECIMALS) * (1 - BINANCE_FEE))
+        expected_notional_ask = int((100.23456789 * 10**TOKEN1_DECIMALS) * (1 + BINANCE_FEE))
+
         # Assert correct scaling
-        assert bid == int(100.12345678 * 10**TOKEN1_DECIMALS)
-        assert ask == int(100.23456789 * 10**TOKEN1_DECIMALS)
+        assert bid == expected_notional_bid
+        assert ask == expected_notional_ask
 
     @patch("requests.get")
     def test_get_price_rate_limit_429(self, mock_get):

@@ -7,7 +7,7 @@ from src.engine.detector import Detector
 from src.binance.rpc_client import BinanceClientRpc
 from src.unichain.clients.v4client import UnichainV4Client
 from src.stream_data import load_pools
-from src.utils.utils import elapsed_ms, check_pre_trade
+from src.utils.utils import elapsed_ms, check_pre_trade, get_public_ip
 from src.utils.types import NotionalValues
 from src.config import (
     TOKEN0_INPUT,
@@ -29,12 +29,24 @@ def main():
     binance, uniswap, orchestrator, detector = init_clients(logger, testnet=TESTNET)
     balances = log_balances(binance, uniswap, logger, TESTNET)
     iteration_id = 0  # TODO: get from file and append
+    # monitor IP for Binance IP allowlist
+    initial_ip = get_public_ip()
+    ip_check_interval = 300 # 5 minutes
+    last_ip_check_time = time.time()
     # TODO: check if permit2 approval is set (> ? )
 
     # in live mode, only execute once to test
     has_executed = False
 
     while True:
+        # IP Change check
+        current_time = time.time()
+        if current_time - last_ip_check_time >= ip_check_interval:
+            current_ip = get_public_ip()
+            if current_ip != initial_ip:
+                raise Exception(f"Public IP changed from {initial_ip} to {current_ip}. Aborting for security.")
+            last_ip_check_time = current_time
+
         iteration_id += 1
         start_time = time.perf_counter()
 
@@ -48,8 +60,7 @@ def main():
 
         # 3. Execute
         if edge and not has_executed:
-            logger.warning("Detected: %s, CEX_%s_DEX, %s", b_side, u_side, f"{edge:_}")
-            # quit if balances too low
+            # check sufficient balances
             check_pre_trade(
                 logger,
                 balances,
@@ -73,6 +84,8 @@ def main():
             )
             balances = log_balances(binance, uniswap, logger, TESTNET)
 
+        # 1M requests / day Alchemy is bottleneck
+        time.sleep(1)
 
 def get_quotes(
     logger: logging.Logger,
