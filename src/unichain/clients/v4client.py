@@ -162,7 +162,7 @@ class UnichainV4Client(BaseUnichainClient):
 
         return (token_out_amount, self.token_in_amount)  # (bid, ask)
 
-    def execute_trade(self, side, manual_amount = None):
+    def execute_trade(self, side, manual_amount=None):
         """
         Executes uniswap leg
         Returns full tx receipt as dict

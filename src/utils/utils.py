@@ -12,12 +12,14 @@ def elapsed_ms(start_time: float) -> str:
     """Return elapsed time since start in ms, formatted in brackets."""
     return f"[ET { (time.perf_counter() - start_time) * 1000:.1f} ms]"
 
+
 def get_public_ip():
     """Returns IP-Address to monitor for binance allowlist"""
     try:
         return requests.get("https://api.ipify.org", timeout=3).text
     except Exception:
         raise Exception("Failed to retrieve initial public IP.")
+
 
 def check_pre_trade(
     logger,

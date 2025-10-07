@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -15,7 +16,7 @@ from src.config import (
     TOKEN0_INPUT,
 )
 
-TESTNET = True
+TESTNET = False
 
 
 def main():
@@ -28,67 +29,83 @@ def main():
     """
     out_log_name = "trading_bot" if TESTNET else "trading_bot_LIVE"
     logger = setup_logger(out_log_name)
-    binance, uniswap, orchestrator, detector, telegram_bot = init_clients(logger, testnet=TESTNET)
+    binance, uniswap, orchestrator, detector, telegram_bot = init_clients(
+        logger, testnet=TESTNET
+    )
     balances = log_balances(binance, uniswap, logger, TESTNET)
     iteration_id = 0
     # monitor IP for Binance IP allowlist
     initial_ip = get_public_ip()
-    ip_check_interval = 300 # 5 minutes
+    ip_check_interval = 300  # 5 minutes
     last_ip_check_time = time.time()
     # TODO: check if permit2 approval is set (> ? )
 
     # in live mode, only execute once to test
     has_executed = False
 
-    while True:
-        # IP Change check
-        current_time = time.time()
-        if current_time - last_ip_check_time >= ip_check_interval:
-            current_ip = get_public_ip()
-            if current_ip != initial_ip:
-                raise Exception(f"Public IP changed from {initial_ip} to {current_ip}. Aborting for security.")
-            last_ip_check_time = current_time
+    try:
+        while True:
 
-        iteration_id += 1
-        start_time = time.perf_counter()
+            # IP Change check
+            current_time = time.time()
+            if current_time - last_ip_check_time >= ip_check_interval:
+                current_ip = get_public_ip()
+                if current_ip != initial_ip:
+                    raise Exception(
+                        f"Public IP changed from {initial_ip} to {current_ip}. Aborting for security."
+                    )
+                last_ip_check_time = current_time
 
-        # 1. Get Binance/Uniswap quotes
-        quotes = get_quotes(logger, iteration_id, start_time, uniswap, binance)
-        if quotes is None:
-            continue  # skip if iteration is failed
+            # Kill switch
+            if telegram_bot.kill_switch:
+                logger.info("⛔️ Bot stopped via kill switch!")
+                break
 
-        # 2. Detect
-        b_side, u_side, edge = detector.detect(quotes)
+            iteration_id += 1
+            start_time = time.perf_counter()
 
-        # 3. Execute
-        if edge and not has_executed:
-            # check sufficient balances
-            check_pre_trade(
-                logger,
-                balances,
-                b_side,
-                u_side,
-                quotes,
-                buffer=1.01,
-            )
+            # 1. Get Binance/Uniswap quotes
+            quotes = get_quotes(logger, iteration_id, start_time, uniswap, binance)
+            if quotes is None:
+                continue  # skip if iteration is failed
 
-            orchestrator.execute(
-                b_side, u_side, binance, uniswap, iteration_id, start_time
-            )
+            # 2. Detect
+            b_side, u_side, edge = detector.detect(quotes)
 
-            if not TESTNET:  # only do one trade for now for LIVE
-                has_executed = True
+            # 3. Execute
+            if edge and not has_executed:
+                # check sufficient balances
+                check_pre_trade(
+                    logger,
+                    balances,
+                    b_side,
+                    u_side,
+                    quotes,
+                    buffer=1.01,
+                )
 
-            logger.info(
-                "[#%d] %s Finished iteration...",
-                iteration_id,
-                elapsed_ms(start_time),
-            )
-            balances = log_balances(binance, uniswap, logger, TESTNET)
-            asyncio.run(telegram_bot.notify_executed())
+                orchestrator.execute(
+                    b_side, u_side, binance, uniswap, iteration_id, start_time
+                )
 
-        # 1M requests / day Alchemy is bottleneck
-        time.sleep(1.2)
+                if not TESTNET:  # only do one trade for now for LIVE
+                    has_executed = True
+
+                logger.info(
+                    "[#%d] %s Finished iteration...",
+                    iteration_id,
+                    elapsed_ms(start_time),
+                )
+                balances = log_balances(binance, uniswap, logger, TESTNET)
+                asyncio.run(telegram_bot.notify_executed())
+
+            # 1M requests / day Alchemy is bottleneck
+            time.sleep(1.2)
+
+    except Exception as e:
+        asyncio.run(telegram_bot.notify_crashed(e))
+        sys.exit(1)
+
 
 def get_quotes(
     logger: logging.Logger,
