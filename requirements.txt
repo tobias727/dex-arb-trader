@@ -7,3 +7,4 @@ websockets==15.0.1
 plotly-express==0.4.1
 PyYAML==6.0.2
 pytest==8.4.2
+python-telegram-bot==22.4

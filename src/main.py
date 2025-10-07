@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import time
 from src.engine.orchestrator import Orchestrator
@@ -9,6 +10,7 @@ from src.unichain.clients.v4client import UnichainV4Client
 from src.stream_data import load_pools
 from src.utils.utils import elapsed_ms, check_pre_trade, get_public_ip
 from src.utils.types import NotionalValues
+from src.utils.telegram_bot import TelegramBot
 from src.config import (
     TOKEN0_INPUT,
 )
@@ -26,9 +28,9 @@ def main():
     """
     out_log_name = "trading_bot" if TESTNET else "trading_bot_LIVE"
     logger = setup_logger(out_log_name)
-    binance, uniswap, orchestrator, detector = init_clients(logger, testnet=TESTNET)
+    binance, uniswap, orchestrator, detector, telegram_bot = init_clients(logger, testnet=TESTNET)
     balances = log_balances(binance, uniswap, logger, TESTNET)
-    iteration_id = 0  # TODO: get from file and append
+    iteration_id = 0
     # monitor IP for Binance IP allowlist
     initial_ip = get_public_ip()
     ip_check_interval = 300 # 5 minutes
@@ -83,9 +85,10 @@ def main():
                 elapsed_ms(start_time),
             )
             balances = log_balances(binance, uniswap, logger, TESTNET)
+            asyncio.run(telegram_bot.notify_executed())
 
         # 1M requests / day Alchemy is bottleneck
-        time.sleep(1)
+        time.sleep(1.2)
 
 def get_quotes(
     logger: logging.Logger,
@@ -178,7 +181,8 @@ def init_clients(logger: logging.Logger, testnet: bool = False):
     uniswap = UnichainV4Client(pools, logger, testnet)
     orchestrator = Orchestrator(logger)
     detector = Detector(logger)
-    return binance, uniswap, orchestrator, detector
+    telegram_bot = TelegramBot()
+    return binance, uniswap, orchestrator, detector, telegram_bot
 
 
 def setup_logger(name: str, log_dir: str = "out/logs") -> logging.Logger:
