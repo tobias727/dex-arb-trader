@@ -9,7 +9,6 @@ class TelegramBot:
     """Messaging trading bot via Telegram"""
 
     def __init__(self):
-        self.kill_switch = False
         self.application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
     async def notify_executed(self):

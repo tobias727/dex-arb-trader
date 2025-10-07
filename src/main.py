@@ -56,11 +56,6 @@ def main():
                     )
                 last_ip_check_time = current_time
 
-            # Kill switch
-            if telegram_bot.kill_switch:
-                logger.info("⛔️ Bot stopped via kill switch!")
-                break
-
             iteration_id += 1
             start_time = time.perf_counter()
 
