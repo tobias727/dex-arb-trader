@@ -79,8 +79,8 @@ def calculate_input_amounts(balances, current_price) -> InputAmounts:
         amt = Decimal(str(amount))
         return float((amt // step) * step)
 
-    eth_binance = balances["binance"]["ETH"]
-    usdc_binance = balances["binance"]["USDC"]
+    eth_binance = float(balances["binance"]["ETH"])
+    usdc_binance = float(balances["binance"]["USDC"])
 
     eth_uniswap = balances["uniswap"]["ETH"]
     usdc_uniswap = balances["uniswap"]["USDC"]
