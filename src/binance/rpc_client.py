@@ -95,12 +95,14 @@ class BinanceClientRpc:
         )
         return bid_notional, ask_notional
 
-    def execute_trade(self, side: str, symbol: str = ACTIVE_TRADING_PAIR):
+    def execute_trade(
+        self, side: str, input_amount: float, symbol: str = ACTIVE_TRADING_PAIR
+    ):
         """
         Executes binance leg
         Returns 'FILLED' if successful
         """
-        api_params = f"symbol={symbol}&side={side.upper()}&type=MARKET&quantity={self.token0_input}&timestamp={int(time.time()*1000)}"  # time in ms
+        api_params = f"symbol={symbol}&side={side.upper()}&type=MARKET&quantity={input_amount}&timestamp={int(time.time()*1000)}"  # time in ms
         signed_params = self._sign_payload(api_params)
 
         headers = {"X-MBX-APIKEY": self.binance_api_key}

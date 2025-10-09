@@ -2,6 +2,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from src.binance.rpc_client import BinanceClientRpc
 from src.unichain.clients.v4client import UnichainV4Client
+from src.utils.types import InputAmounts
 from src.utils.utils import elapsed_ms
 
 
@@ -19,14 +20,20 @@ class Orchestrator:
         uniswap: UnichainV4Client,
         iteration_id: int,
         start_time,
+        input_amounts: InputAmounts,
     ):
         """
         Executes first CEX, then DEX for minimal slippage
         """
 
+        def _binance_amount():
+            if b_side == "BUY":
+                return input_amounts.binance_buy
+            return input_amounts.binance_sell
+
         def _execute_cex_leg():
             t4 = time.perf_counter()
-            response_binance = binance.execute_trade(b_side)
+            response_binance = binance.execute_trade(b_side, _binance_amount())
             t5 = time.perf_counter()
             self.logger.info(
                 "[#%d] %s Executed Binance %s: %s [L %.1f ms]",

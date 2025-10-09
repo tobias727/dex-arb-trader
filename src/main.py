@@ -9,7 +9,12 @@ from src.engine.detector import Detector
 from src.binance.rpc_client import BinanceClientRpc
 from src.unichain.clients.v4client import UnichainV4Client
 from src.stream_data import load_pools
-from src.utils.utils import elapsed_ms, check_pre_trade, get_public_ip
+from src.utils.utils import (
+    elapsed_ms,
+    check_pre_trade,
+    get_public_ip,
+    calculate_input_amounts,
+)
 from src.utils.types import NotionalValues
 from src.utils.telegram_bot import TelegramBot
 from src.config import (
@@ -32,16 +37,18 @@ def main():
     binance, uniswap, orchestrator, detector, telegram_bot = init_clients(
         logger, testnet=TESTNET
     )
+
+    # balances / inputs
     balances = log_balances(binance, uniswap, logger, TESTNET)
+    input_amounts = calculate_input_amounts(balances, current_price=4_500)
+
+    # iteration count
     iteration_id = 0
+
     # monitor IP for Binance IP allowlist
     initial_ip = get_public_ip()
     ip_check_interval = 300  # 5 minutes
     last_ip_check_time = time.time()
-    # TODO: check if permit2 approval is set (> ? )
-
-    # in live mode, only execute once to test
-    has_executed = False
 
     try:
         while True:
@@ -68,7 +75,10 @@ def main():
             b_side, u_side, edge = detector.detect(quotes)
 
             # 3. Execute
-            if edge and not has_executed:
+            if (edge) and (
+                (input_amounts.binance_buy is not None and b_side == "BUY")
+                or (input_amounts.binance_sell is not None and b_side == "SELL")
+            ):
                 # check sufficient balances
                 check_pre_trade(
                     logger,
@@ -80,11 +90,14 @@ def main():
                 )
 
                 orchestrator.execute(
-                    b_side, u_side, binance, uniswap, iteration_id, start_time
+                    b_side,
+                    u_side,
+                    binance,
+                    uniswap,
+                    iteration_id,
+                    start_time,
+                    input_amounts,
                 )
-
-                if not TESTNET:  # only do one trade for now for LIVE
-                    has_executed = True
 
                 logger.info(
                     "[#%d] %s Finished iteration...",
@@ -92,10 +105,11 @@ def main():
                     elapsed_ms(start_time),
                 )
                 balances = log_balances(binance, uniswap, logger, TESTNET)
+                input_amounts = calculate_input_amounts(balances, current_price=4_500)
                 asyncio.run(telegram_bot.notify_executed())
 
             # 1M requests / day Alchemy is bottleneck
-            time.sleep(1.2)
+            time.sleep(1.5)
 
     except Exception as e:
         asyncio.run(telegram_bot.notify_crashed(e))

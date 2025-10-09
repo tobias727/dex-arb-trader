@@ -1,9 +1,14 @@
 import time
+from decimal import Decimal
 import requests
-from src.utils.types import NotionalValues
+from src.utils.types import NotionalValues, InputAmounts
 from src.config import (
     TOKEN1_DECIMALS,
     TOKEN0_INPUT,
+    BINANCE_MIN_QTY,
+    BINANCE_STEP_SIZE,
+    BINANCE_MIN_NOTIONAL,
+    GAS_RESERVE,
 )
 from src.utils.exceptions import InsufficientBalanceError
 
@@ -63,3 +68,54 @@ def check_pre_trade(
         )
         logger.error(message)
         raise InsufficientBalanceError(message)
+
+
+def calculate_input_amounts(balances, current_price) -> InputAmounts:
+    """Function to determine input amounts"""
+
+    def _quantize_step_size(amount, step_size) -> float:
+        """Returns amount rounded down to nearest multiple of step_size"""
+        step = Decimal(str(step_size))
+        amt = Decimal(str(amount))
+        return float((amt // step) * step)
+
+    eth_binance = balances["binance"]["ETH"]
+    usdc_binance = balances["binance"]["USDC"]
+
+    eth_uniswap = balances["uniswap"]["ETH"]
+    usdc_uniswap = balances["uniswap"]["USDC"]
+
+    # Binance Buy
+    order_value = TOKEN0_INPUT * current_price
+    binance_buy = None
+    if BINANCE_MIN_NOTIONAL <= order_value <= usdc_binance:
+        binance_buy = _quantize_step_size(TOKEN0_INPUT, BINANCE_STEP_SIZE)
+
+    # Binance Sell
+    available = _quantize_step_size(eth_binance, BINANCE_STEP_SIZE)
+    sell_value = available * current_price
+    binance_sell = None
+    if available >= BINANCE_MIN_QTY and sell_value >= BINANCE_MIN_NOTIONAL:
+        binance_sell = available
+
+    # Uniswap Buy
+    uniswap_buy = usdc_uniswap if usdc_uniswap > 0 else None
+
+    # Uniswap Sell
+    expected_cost = TOKEN0_INPUT + GAS_RESERVE
+    uniswap_sell = TOKEN0_INPUT if eth_uniswap >= expected_cost else None
+
+    if binance_buy is None or uniswap_sell is None:
+        binance_buy = None
+        uniswap_sell = None
+
+    if binance_sell is None or uniswap_buy is None:
+        binance_sell = None
+        uniswap_buy = None
+
+    return InputAmounts(
+        binance_buy,
+        binance_sell,
+        uniswap_buy,
+        uniswap_sell,
+    )

@@ -17,6 +17,7 @@ OUTPUT_DIRECTORY = os.path.join(os.getcwd(), "out")
 # Envs
 ETHERSCAN_API_KEY = os.getenv("ETHERSCAN_API_KEY")
 ALCHEMY_API_KEY = os.getenv("ALCHEMY_API_KEY")
+INFURA_API_KEY = os.getenv("INFURA_API_KEY")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_API_KEY_TESTNET = os.getenv("BINANCE_API_KEY_TESTNET")
 BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
@@ -40,6 +41,7 @@ MAINNET_SUSHISWAP_ROUTER_ADDRESS = config["mainnet"]["sushiswap"]["contract_addr
 # Unichain
 CHAINID_UNICHAIN = config["unichain"]["chain_id"]
 ALCHEMY_UNICHAIN_BASE_RPC_URL = config["unichain"]["alchemy_rpc_base_url"]
+INFURA_UNICHAIN_BASE_RPC_URL = config["unichain"]["infura_rpc_base_url"]
 UNISWAP_PROTOCOL_VERSION = config["unichain"]["uniswap"]["active_protocol_version"]
 UNICHAIN_UNIVERSAL_ROUTER_ADDRESS = config["unichain"]["uniswap"][
     "contract_deployments"
@@ -118,5 +120,7 @@ TOKEN0_DECIMALS = config["execution"]["token0_decimals"]
 TOKEN1_DECIMALS = config["execution"]["token1_decimals"]
 BINANCE_FEE = config["execution"]["binance_fee"]
 MIN_EDGE = config["execution"]["min_edge"]
-BINANCE_TICK_SIZE = config["execution"]["binance_tick_size"]
+BINANCE_MIN_QTY = config["execution"]["binance_min_qty"]
+BINANCE_STEP_SIZE = config["execution"]["binance_step_size"]
+BINANCE_MIN_NOTIONAL = config["execution"]["binance_min_notional"]
 GAS_RESERVE = config["execution"]["gas_reserve"]

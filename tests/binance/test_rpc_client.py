@@ -93,7 +93,7 @@ class TestBinanceClientRpc:
         mock_resp.json.return_value = {"status": "FILLED"}
         mock_post.return_value = mock_resp
 
-        result = self.client.execute_trade(side="BUY")
+        result = self.client.execute_trade(side="BUY", input_amount=10)
 
         assert result["status"] == "FILLED"
 
@@ -107,6 +107,6 @@ class TestBinanceClientRpc:
         mock_post.return_value = mock_resp
 
         with pytest.raises(requests.exceptions.HTTPError) as e:
-            self.client.execute_trade(side="BUY")
+            self.client.execute_trade(side="BUY", input_amount=10)
 
         assert e.type == requests.exceptions.HTTPError

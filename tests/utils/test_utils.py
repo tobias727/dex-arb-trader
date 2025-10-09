@@ -1,8 +1,14 @@
 import pytest
-from src.utils.utils import check_pre_trade
-from src.utils.types import NotionalValues
+from src.utils.utils import check_pre_trade, calculate_input_amounts
+from src.utils.types import NotionalValues, InputAmounts
 from src.utils.exceptions import InsufficientBalanceError
 from tests.utils.dummy_logger import DummyLogger
+
+TOKEN0_INPUT = 0.002
+BINANCE_MIN_NOTIONAL = 5.0
+BINANCE_STEP_SIZE = 0.0001
+BINANCE_MIN_QTY = 0.0001
+GAS_RESERVE = 0.000001
 
 
 class TestUtils:
@@ -89,3 +95,51 @@ class TestUtils:
 
         # Ensure no errors are logged
         assert len(logger.get_logs("error")) == 0, "There should be no errors logged."
+
+    def test_cex_bux_dex_sell(self):
+        """cex_bux_dex_sell"""
+        balances = {
+            "binance": {"ETH": 0.00098100, "USDC": 55.85459253},
+            "uniswap": {"ETH": 0.014549167019999025, "USDC": 0.0},
+        }
+        current_price = 4_500
+
+        amounts = calculate_input_amounts(balances, current_price)
+        print(amounts)
+        assert isinstance(amounts, InputAmounts)
+        assert amounts.binance_buy == pytest.approx(0.002)
+        assert amounts.binance_sell is None
+        assert amounts.uniswap_buy is None
+        assert amounts.uniswap_sell == pytest.approx(0.002)
+
+    def test_all(self):
+        """all possible"""
+        balances = {
+            "binance": {"ETH": 0.01098100, "USDC": 10.85459253},
+            "uniswap": {"ETH": 0.004549167019999025, "USDC": 45.452335},
+        }
+        current_price = 4_500
+
+        amounts = calculate_input_amounts(balances, current_price)
+        print(amounts)
+        assert isinstance(amounts, InputAmounts)
+        assert amounts.binance_buy == pytest.approx(0.002)
+        assert amounts.binance_sell == pytest.approx(0.0109)
+        assert amounts.uniswap_buy == pytest.approx(45.452335)
+        assert amounts.uniswap_sell == pytest.approx(0.002)
+
+    def test_cex_sell_dex_buy(self):
+        """cex_sell_dex_buy"""
+        balances = {
+            "binance": {"ETH": 0.01098100, "USDC": 1.85459253},
+            "uniswap": {"ETH": 0.004549167019999025, "USDC": 45.452335},
+        }
+        current_price = 4_500
+
+        amounts = calculate_input_amounts(balances, current_price)
+        print(amounts)
+        assert isinstance(amounts, InputAmounts)
+        assert amounts.binance_buy is None
+        assert amounts.binance_sell == pytest.approx(0.0109)
+        assert amounts.uniswap_buy == pytest.approx(45.452335)
+        assert amounts.uniswap_sell is None

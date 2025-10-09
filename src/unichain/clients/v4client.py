@@ -31,6 +31,8 @@ from src.config import (
     UNICHAIN_SEPOLIA_USDC,
     ALCHEMY_UNICHAIN_BASE_RPC_URL,
     ALCHEMY_API_KEY,
+    INFURA_UNICHAIN_BASE_RPC_URL,
+    INFURA_API_KEY,
 )
 
 
@@ -255,7 +257,7 @@ class UnichainV4Client(BaseUnichainClient):
                 "gas": 1_000_000,  # higher gas limit for swaps
                 "maxFeePerGas": 600_000,
                 "type": "0x2",
-                "maxPriorityFeePerGas": 10_000,  # reduced for low network usage
+                "maxPriorityFeePerGas": 1_000_000,  # reduced for low network usage
                 "chainId": self.chain_id,
             }
         )

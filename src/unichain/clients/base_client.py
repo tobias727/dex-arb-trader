@@ -10,6 +10,8 @@ from src.config import (
     ALCHEMY_UNICHAIN_BASE_RPC_URL,
     ALCHEMY_UNICHAIN_SEPOLIA_RPC_URL,
     ALCHEMY_API_KEY,
+    INFURA_UNICHAIN_BASE_RPC_URL,
+    INFURA_API_KEY,
 )
 
 
@@ -17,13 +19,13 @@ class BaseUnichainClient(ABC):
     """Base class for Unichain clients"""
 
     def __init__(self, logger, testnet: bool = False):
-        alchemy_base_rpc_url = (
+        base_rpc_url = (
             ALCHEMY_UNICHAIN_SEPOLIA_RPC_URL
             if testnet
             else ALCHEMY_UNICHAIN_BASE_RPC_URL
         )
-        alchemy_api_key = "" if testnet else ALCHEMY_API_KEY
-        rpc_url = f"{alchemy_base_rpc_url}{alchemy_api_key}"
+        api_key = "" if testnet else ALCHEMY_API_KEY
+        rpc_url = f"{base_rpc_url}{api_key}"
         self.web3 = Web3(Web3.HTTPProvider(rpc_url))
         if not testnet:
             self._check_web3_connection()  # for testnet always False

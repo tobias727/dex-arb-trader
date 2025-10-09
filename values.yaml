@@ -5,12 +5,14 @@ execution:
   active_trading_pair: ETHUSDC
   active_token0: ETH
   active_token1: USDC
-  token0_input: 0.01 # ETH
+  token0_input: 0.0020 # ETH
   token0_decimals: 18
   token1_decimals: 6
   binance_fee: 0.00095 # https://www.binance.com/en/fee/trading
-  min_edge: 100_000 # 1 cent = 10_000
-  binance_tick_size: 0.01 # 1 cent
+  min_edge: 10_000 # 1 cent = 10_000
+  binance_min_qty: 0.0001
+  binance_step_size: 0.0001
+  binance_min_notional: 5.0
   gas_reserve: 0.000001 # ensuring enough gas left for swaps
 
 binance:
@@ -40,6 +42,7 @@ mainnet:
 unichain:
   chain_id: 130
   alchemy_rpc_base_url: https://unichain-mainnet.g.alchemy.com/v2/
+  infura_rpc_base_url: https://unichain-mainnet.infura.io/v3/
   uniswap:
     active_protocol_version: v4 # v4 or v2
     # https://docs.uniswap.org/contracts/v4/deployments
