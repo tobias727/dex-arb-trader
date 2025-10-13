@@ -10,7 +10,7 @@ from src.config import (
     BINANCE_MIN_NOTIONAL,
     GAS_RESERVE,
 )
-from src.utils.exceptions import InsufficientBalanceError
+from src.utils.exceptions import InsufficientBalanceError, IPChangeError
 
 
 def elapsed_ms(start_time: float) -> str:
@@ -22,8 +22,21 @@ def get_public_ip():
     """Returns IP-Address to monitor for binance allowlist"""
     try:
         return requests.get("https://api.ipify.org", timeout=3).text
-    except Exception:
-        raise Exception("Failed to retrieve initial public IP.")
+    except Exception as e:
+        raise IPChangeError("Failed to retrieve initial public IP.") from e
+
+
+def check_ip_change(initial_ip, last_ip_check_time):
+    """Check if the IP address changed (last 5 minutes)"""
+    current_time = time.time()
+    if current_time - last_ip_check_time >= 300:  # 5 minutes
+        current_ip = get_public_ip()
+        if current_ip != initial_ip:
+            raise IPChangeError(
+                f"Public IP changed from {initial_ip} to {current_ip}. Aborting for security."
+            )
+        last_ip_check_time = current_time
+    return last_ip_check_time
 
 
 def check_pre_trade(

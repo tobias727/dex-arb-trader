@@ -14,7 +14,9 @@ from src.utils.utils import (
     check_pre_trade,
     get_public_ip,
     calculate_input_amounts,
+    check_ip_change,
 )
+from src.utils.exceptions import QuoteError
 from src.utils.types import NotionalValues
 from src.utils.telegram_bot import TelegramBot
 from src.config import (
@@ -41,35 +43,26 @@ def main():
     # balances / inputs
     balances = log_balances(binance, uniswap, logger, TESTNET)
     input_amounts = calculate_input_amounts(balances, current_price=4_500)
+    logger.info("Input amounts: %s", input_amounts)
 
     # iteration count
     iteration_id = 0
 
     # monitor IP for Binance IP allowlist
     initial_ip = get_public_ip()
-    ip_check_interval = 300  # 5 minutes
     last_ip_check_time = time.time()
 
     try:
         while True:
-
-            # IP Change check
-            current_time = time.time()
-            if current_time - last_ip_check_time >= ip_check_interval:
-                current_ip = get_public_ip()
-                if current_ip != initial_ip:
-                    raise Exception(
-                        f"Public IP changed from {initial_ip} to {current_ip}. Aborting for security."
-                    )
-                last_ip_check_time = current_time
-
+            # IP Change check + iter couter
+            last_ip_check_time = check_ip_change(initial_ip, last_ip_check_time)
             iteration_id += 1
-            start_time = time.perf_counter()
 
             # 1. Get Binance/Uniswap quotes
+            start_time = time.perf_counter()
             quotes = get_quotes(logger, iteration_id, start_time, uniswap, binance)
             if quotes is None:
-                continue  # skip if iteration is failed
+                continue  # skip if quoting failed
 
             # 2. Detect
             b_side, u_side, edge = detector.detect(quotes)
@@ -100,7 +93,7 @@ def main():
                 )
 
                 logger.info(
-                    "[#%d] %s Finished iteration...",
+                    "[#%d] %s Finished iteration...\n",
                     iteration_id,
                     elapsed_ms(start_time),
                 )
@@ -169,7 +162,7 @@ def get_quotes(
             u_bid[0],
             u_ask[0],
         )
-    except Exception as e:
+    except QuoteError as e:
         logger.error("Iteration skipped due to data fetch error: %s", e)
         return None
 

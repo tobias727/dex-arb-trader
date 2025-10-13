@@ -143,3 +143,14 @@ class TestUtils:
         assert amounts.binance_sell == pytest.approx(0.0109)
         assert amounts.uniswap_buy == pytest.approx(45.452335)
         assert amounts.uniswap_sell is None
+
+    def test_custom_amount(self):
+        """cex_sell_dex_buy"""
+        balances = {
+            "binance": {"ETH": 0.01296960, "USDC": 4.77527253},
+            "uniswap": {"ETH": 0.012549138095003488, "USDC": 8.510216},
+        }
+        current_price = 4_500
+
+        amounts = calculate_input_amounts(balances, current_price)
+        print(amounts)

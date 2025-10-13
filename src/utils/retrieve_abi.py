@@ -2,6 +2,7 @@ import os
 import json
 import requests
 from web3 import Web3
+from src.utils.exceptions import RetrieveAbiError
 from src.config import ETHERSCAN_API_KEY, OUTPUT_DIRECTORY
 
 
@@ -17,7 +18,7 @@ def save_abi_to_file(contract_address: str, chain_id, logger) -> None:
             json.dump(contract_abi, json_file, indent=4)
         logger.info(f"ABI saved to: {output_file_path}")
     except Exception as e:
-        raise Exception(f"An error occurred during save_abi_to_file: {e}")
+        raise RetrieveAbiError(f"An error occurred during save_abi_to_file: {e}") from e
 
 
 def load_abi(contract_address: str, chain_id: str):
@@ -35,9 +36,9 @@ def load_abi(contract_address: str, chain_id: str):
             abi = json.load(f)
         return abi
     except Exception as e:
-        raise Exception(
+        raise RetrieveAbiError(
             f"An error occurred while loading ABI for {contract_address}: {e}"
-        )
+        ) from e
 
 
 def _get_contract_abi(contract_address: str, chain_id: str) -> dict:
@@ -49,9 +50,9 @@ def _get_contract_abi(contract_address: str, chain_id: str) -> dict:
         if data["status"] == "1":
             contract_abi = json.loads(data["result"])
         else:
-            raise Exception(f"Error from Etherscan API: {data['result']}")
+            raise RetrieveAbiError(f"Error from Etherscan API: {data['result']}")
     else:
-        raise Exception(
+        raise RetrieveAbiError(
             f"Failed to fetch data from Etherscan. HTTP status code: {response.status_code}"
         )
     return contract_abi

@@ -4,6 +4,7 @@ from src.binance.rpc_client import BinanceClientRpc
 from src.unichain.clients.v4client import UnichainV4Client
 from src.utils.types import InputAmounts
 from src.utils.utils import elapsed_ms
+from src.utils.exceptions import ExecutionError
 
 
 class Orchestrator:
@@ -73,12 +74,12 @@ class Orchestrator:
 
             try:
                 response_binance = future_binance.result()
-            except Exception as e:
+            except ExecutionError as e:
                 self.logger.error("Error executing Binance leg: %s", e)
 
             try:
                 receipt_uniswap = future_uniswap.result()
-            except Exception as e:
+            except ExecutionError as e:
                 self.logger.error("Error executing Uniswap leg: %s", e)
 
         # handle partial execution
