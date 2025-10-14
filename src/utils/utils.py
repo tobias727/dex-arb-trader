@@ -82,47 +82,27 @@ def check_pre_trade(
         logger.error(message)
         raise InsufficientBalanceError(message)
 
-
 def calculate_input_amounts(balances, current_price) -> InputAmounts:
     """Function to determine input amounts"""
-
-    def _quantize_step_size(amount, step_size) -> float:
-        """Returns amount rounded down to nearest multiple of step_size"""
-        step = Decimal(str(step_size))
-        amt = Decimal(str(amount))
-        return float((amt // step) * step)
-
     eth_binance = float(balances["binance"]["ETH"])
     usdc_binance = float(balances["binance"]["USDC"])
 
     eth_uniswap = balances["uniswap"]["ETH"]
     usdc_uniswap = balances["uniswap"]["USDC"]
 
-    # Binance Buy
-    order_value = TOKEN0_INPUT * current_price
-    binance_buy = None
-    if BINANCE_MIN_NOTIONAL <= order_value <= usdc_binance:
-        binance_buy = _quantize_step_size(TOKEN0_INPUT, BINANCE_STEP_SIZE)
-
-    # Binance Sell
-    available = _quantize_step_size(eth_binance, BINANCE_STEP_SIZE)
-    sell_value = available * current_price
-    binance_sell = None
-    if available >= BINANCE_MIN_QTY and sell_value >= BINANCE_MIN_NOTIONAL:
-        binance_sell = available
-
-    # Uniswap Buy
-    uniswap_buy = usdc_uniswap if usdc_uniswap > 0 else None
-
-    # Uniswap Sell
-    expected_cost = TOKEN0_INPUT + GAS_RESERVE
-    uniswap_sell = TOKEN0_INPUT if eth_uniswap >= expected_cost else None
-
-    if binance_buy is None or uniswap_sell is None:
+    # CEX_buy_DEX_sell
+    if usdc_binance > TOKEN0_INPUT * current_price and eth_uniswap > (TOKEN0_INPUT + GAS_RESERVE):
+        binance_buy = TOKEN0_INPUT
+        uniswap_sell = TOKEN0_INPUT
+    else:
         binance_buy = None
         uniswap_sell = None
 
-    if binance_sell is None or uniswap_buy is None:
+    # CEX_sell_DEX_buy
+    if eth_binance > TOKEN0_INPUT and usdc_uniswap > (TOKEN0_INPUT * current_price):
+        binance_sell = TOKEN0_INPUT
+        uniswap_buy = TOKEN0_INPUT
+    else:
         binance_sell = None
         uniswap_buy = None
 
