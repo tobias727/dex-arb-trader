@@ -26,7 +26,7 @@ from src.config import (
 TESTNET = False
 
 
-def main():
+async def main():
     """
     Entrypoint for trading bot
     Execution pattern is:
@@ -99,12 +99,13 @@ def main():
                 )
                 balances = log_balances(binance, uniswap, logger, TESTNET)
                 input_amounts = calculate_input_amounts(balances, current_price=4_500)
-                asyncio.run(telegram_bot.notify_executed())
+                await telegram_bot.notify_executed()
 
             # 1M requests / day Alchemy is bottleneck
-            time.sleep(1.5)
+            await asyncio.sleep(1.5)
 
     except Exception as e:
+        logger.error("Main loop crashed: %s", e)
         asyncio.run(telegram_bot.notify_crashed(e))
         sys.exit(1)
 
@@ -164,6 +165,9 @@ def get_quotes(
         )
     except QuoteError as e:
         logger.error("Iteration skipped due to data fetch error: %s", e)
+        return None
+    except Exception as e:
+        logger.error("Iteration skipped due to unexpected error: %s", e)
         return None
 
 
@@ -230,4 +234,4 @@ def setup_logger(name: str, log_dir: str = "out/logs") -> logging.Logger:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
