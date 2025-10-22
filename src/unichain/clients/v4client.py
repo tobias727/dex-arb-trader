@@ -257,7 +257,7 @@ class UnichainV4Client(BaseUnichainClient):
                 "gas": 1_000_000,  # higher gas limit for swaps
                 "maxFeePerGas": 600_000,
                 "type": "0x2",
-                "maxPriorityFeePerGas": 1_000_000,  # reduced for low network usage
+                "maxPriorityFeePerGas": 100_000,  # reduced for low network usage
                 "chainId": self.chain_id,
             }
         )
