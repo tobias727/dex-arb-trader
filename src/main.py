@@ -97,7 +97,7 @@ async def main():
                     iteration_id,
                     elapsed_ms(start_time),
                 )
-                await asyncio.sleep(2) # wait for balances uniswap
+                await asyncio.sleep(2)  # wait for balances uniswap
                 balances = log_balances(binance, uniswap, logger, TESTNET)
                 input_amounts = calculate_input_amounts(balances, current_price=4_500)
                 await telegram_bot.notify_executed()

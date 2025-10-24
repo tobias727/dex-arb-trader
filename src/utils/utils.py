@@ -15,6 +15,7 @@ def load_pools(json_filepath):
     with open(json_filepath, "r", encoding="utf-8") as f:
         return json.load(f)["data"]["pools"]
 
+
 def elapsed_ms(start_time: float) -> str:
     """Return elapsed time since start in ms, formatted in brackets."""
     return f"[ET { (time.perf_counter() - start_time) * 1000:.1f} ms]"
@@ -84,6 +85,7 @@ def check_pre_trade(
         logger.error(message)
         raise InsufficientBalanceError(message)
 
+
 def calculate_input_amounts(balances, current_price) -> InputAmounts:
     """Function to determine input amounts"""
     eth_binance = float(balances["binance"]["ETH"])
@@ -93,7 +95,9 @@ def calculate_input_amounts(balances, current_price) -> InputAmounts:
     usdc_uniswap = balances["uniswap"]["USDC"]
 
     # CEX_buy_DEX_sell
-    if usdc_binance > TOKEN0_INPUT * current_price and eth_uniswap > (TOKEN0_INPUT + GAS_RESERVE):
+    if usdc_binance > TOKEN0_INPUT * current_price and eth_uniswap > (
+        TOKEN0_INPUT + GAS_RESERVE
+    ):
         binance_buy = TOKEN0_INPUT
         uniswap_sell = TOKEN0_INPUT
     else:
