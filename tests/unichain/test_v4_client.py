@@ -1,5 +1,5 @@
 from src.unichain.clients.v4client import UnichainV4Client
-from src.stream_data import load_pools
+from src.utils.utils import load_pools
 from tests.utils.dummy_logger import DummyLogger
 
 

@@ -8,13 +8,13 @@ from src.engine.orchestrator import Orchestrator
 from src.engine.detector import Detector
 from src.binance.rpc_client import BinanceClientRpc
 from src.unichain.clients.v4client import UnichainV4Client
-from src.stream_data import load_pools
 from src.utils.utils import (
     elapsed_ms,
     check_pre_trade,
     get_public_ip,
     calculate_input_amounts,
     check_ip_change,
+    load_pools,
 )
 from src.utils.exceptions import QuoteError
 from src.utils.types import NotionalValues
@@ -23,7 +23,7 @@ from src.config import (
     TOKEN0_INPUT,
 )
 
-TESTNET = False
+TESTNET = True
 
 
 async def main():

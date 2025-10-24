@@ -1,17 +1,19 @@
 import time
-from decimal import Decimal
+import json
 import requests
 from src.utils.types import NotionalValues, InputAmounts
 from src.config import (
     TOKEN1_DECIMALS,
     TOKEN0_INPUT,
-    BINANCE_MIN_QTY,
-    BINANCE_STEP_SIZE,
-    BINANCE_MIN_NOTIONAL,
     GAS_RESERVE,
 )
 from src.utils.exceptions import InsufficientBalanceError, IPChangeError
 
+
+def load_pools(json_filepath):
+    """Load pool data from json (The Graph)"""
+    with open(json_filepath, "r", encoding="utf-8") as f:
+        return json.load(f)["data"]["pools"]
 
 def elapsed_ms(start_time: float) -> str:
     """Return elapsed time since start in ms, formatted in brackets."""

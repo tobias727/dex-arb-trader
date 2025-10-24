@@ -1,4 +1,3 @@
-import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from web3 import Web3
 from eth_abi import encode
@@ -270,58 +269,3 @@ class UnichainV4Client(BaseUnichainClient):
         receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
         return receipt
-
-    async def _fetch_pool_rates(self, pool):
-        """Fetch rates for a single pool asynchronously"""
-        try:
-            # dynamic input adjustment
-            token0_decimals = int(pool["token0"]["decimals"])
-            input_amounts = [10 ** (token0_decimals - 2), 10 ** (token0_decimals - 3)]
-
-            pool_result = {
-                "pool_id": pool["id"],
-                "feeTier": pool["feeTier"],
-                "token0.symbol": pool["token0"]["symbol"],
-                "token1.symbol": pool["token1"]["symbol"],
-                "token0.id": pool["token0"]["id"],
-                "token1.id": pool["token1"]["id"],
-                "rates": {},
-            }
-            # Compute rates for each token0 input amount
-            for amount_token0 in input_amounts:
-                token_out_amount = await asyncio.to_thread(
-                    get_amounts_out,
-                    self.uniswap_v4_quoter_contract,
-                    pool["token0"]["id"],
-                    pool["token1"]["id"],
-                    amount_token0,
-                    int(pool["feeTier"]),
-                    int(pool["tickSpacing"]),
-                )
-                token_in_amount = await asyncio.to_thread(
-                    get_amounts_in,
-                    self.uniswap_v4_quoter_contract,
-                    pool["token0"]["id"],
-                    pool["token1"]["id"],
-                    amount_token0,
-                    int(pool["feeTier"]),
-                    int(pool["tickSpacing"]),
-                )
-                pool_result["rates"][amount_token0] = {
-                    "bid": token_out_amount,
-                    "ask": token_in_amount,
-                }
-            return pool_result
-        except Exception as e:
-            self.logger.error(
-                f"❌ Error fetching swap rates for pool {pool['id']}: {e}"
-            )
-            return None
-
-    async def _get_swap_rates(self):
-        """Fetch swap rates for all pools asynchronously"""
-        tasks = [self._fetch_pool_rates(pool) for pool in self.pools]
-        # Run all tasks concurrently
-        results = await asyncio.gather(*tasks)
-        # Filter out any failed requests (None results)
-        return [result for result in results if result is not None]
