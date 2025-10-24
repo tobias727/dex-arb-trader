@@ -4,3 +4,4 @@ external/
 utils/__pycache__/
 *.pyc
 out/
+notebooks/
