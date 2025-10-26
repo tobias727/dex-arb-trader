@@ -13,6 +13,7 @@ from src.utils.utils import (
     check_pre_trade,
     get_public_ip,
     calculate_input_amounts,
+    calculate_pnl,
     check_ip_change,
     load_pools,
 )
@@ -82,7 +83,7 @@ async def main():
                     buffer=1.01,
                 )
 
-                orchestrator.execute(
+                response_binance, receipt_uniswap = orchestrator.execute(
                     b_side,
                     u_side,
                     binance,
@@ -93,14 +94,20 @@ async def main():
                 )
 
                 logger.info(
-                    "[#%d] %s Finished iteration...\n",
+                    "[#%d] %s Finished iteration...",
                     iteration_id,
                     elapsed_ms(start_time),
                 )
                 await asyncio.sleep(2)  # wait for balances uniswap
+                pnl = calculate_pnl(response_binance, receipt_uniswap)
+                logger.info(
+                    "[#%d] PnL: %s USDC\n",
+                    iteration_id,
+                    pnl,
+                )
                 balances = log_balances(binance, uniswap, logger, TESTNET)
                 input_amounts = calculate_input_amounts(balances, current_price=4_500)
-                await telegram_bot.notify_executed()
+                await telegram_bot.notify_executed(pnl)
 
             # 1M requests / day Alchemy is bottleneck
             await asyncio.sleep(1.5)

@@ -98,3 +98,5 @@ class Orchestrator:
         ):
             self.logger.warning("Binance leg failed. Rolling back Uniswap leg.")
             _rollback_successful_trade(u_side, uniswap)
+
+        return response_binance, receipt_uniswap

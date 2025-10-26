@@ -1,5 +1,6 @@
 import time
 import json
+from decimal import Decimal, ROUND_DOWN
 import requests
 from src.utils.types import NotionalValues, InputAmounts
 from src.config import (
@@ -118,3 +119,51 @@ def calculate_input_amounts(balances, current_price) -> InputAmounts:
         uniswap_buy,
         uniswap_sell,
     )
+
+
+def calculate_pnl(response_binance, receipt_uniswap):
+    """Function to calculate PnL after execution"""
+    # Here we use binance as price for gas fee calculation in USDC for simplicity
+    eth_to_usdc_price = Decimal(response_binance["fills"][0]["price"])
+    # uniswap
+    uniswap_usdc_amount = Decimal("0")
+    for log in receipt_uniswap["logs"]:
+        if (
+            log["topics"][0].hex()
+            == "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+        ):  # Transfer(address,address,uint256)
+            uniswap_usdc_amount += Decimal(int(log["data"].hex(), 16)) / Decimal(
+                "1000000"
+            )  # USDC 6 decimals
+    gas_fee_eth = (
+        Decimal(receipt_uniswap["gasUsed"])
+        * Decimal(receipt_uniswap["effectiveGasPrice"])
+        / Decimal(1e18)
+    )
+    gas_fee_usdc = gas_fee_eth * Decimal(eth_to_usdc_price)
+
+    # binance
+    binance_pnl = Decimal("0")
+    if response_binance["side"] == "BUY":
+        for fill in response_binance["fills"]:
+            price = Decimal(fill["price"])
+            qty = Decimal(fill["qty"])
+            commission = Decimal(fill["commission"])
+            # BUY: commission in ETH, convert to USDC
+            binance_pnl -= price * qty
+            binance_pnl -= commission * price
+    elif response_binance["side"] == "SELL":
+        for fill in response_binance["fills"]:
+            price = Decimal(fill["price"])
+            qty = Decimal(fill["qty"])
+            commission = Decimal(fill["commission"])
+            # SELL: commission in USDC
+            binance_pnl += price * qty
+            binance_pnl -= commission
+
+    # total
+    if response_binance["side"] == "BUY":
+        total_pnl = uniswap_usdc_amount + binance_pnl - gas_fee_usdc
+    else:  # b_side == "SELL"
+        total_pnl = binance_pnl - uniswap_usdc_amount - gas_fee_usdc
+    return total_pnl.quantize(Decimal("1e-18"), rounding=ROUND_DOWN)
