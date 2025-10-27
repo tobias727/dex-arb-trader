@@ -168,7 +168,7 @@ def calculate_pnl(response_binance, receipt_uniswap):
         total_pnl = uniswap_usdc_amount + binance_pnl - gas_fee_usdc
     else:  # b_side == "SELL"
         total_pnl = binance_pnl - uniswap_usdc_amount - gas_fee_usdc
-    return total_pnl.quantize(Decimal("1e-18"), rounding=ROUND_DOWN)
+    return total_pnl.quantize(Decimal("1e-6"), rounding=ROUND_DOWN)
 
 
 def append_trade_to_csv(filename, trade_data):

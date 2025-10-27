@@ -29,8 +29,12 @@ class TestBinanceClientRpc:
 
         bid, ask = self.client.get_price()
 
-        expected_notional_bid = int((100.12345678 * 10**TOKEN1_DECIMALS) * (1 - BINANCE_FEE))
-        expected_notional_ask = int((100.23456789 * 10**TOKEN1_DECIMALS) * (1 + BINANCE_FEE))
+        expected_notional_bid = int(
+            (100.12345678 * 10**TOKEN1_DECIMALS) * (1 - BINANCE_FEE)
+        )
+        expected_notional_ask = int(
+            (100.23456789 * 10**TOKEN1_DECIMALS) * (1 + BINANCE_FEE)
+        )
 
         # Assert correct scaling
         assert bid == expected_notional_bid
