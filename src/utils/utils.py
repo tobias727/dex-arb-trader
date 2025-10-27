@@ -1,5 +1,7 @@
 import time
 import json
+import csv
+import os
 from decimal import Decimal, ROUND_DOWN
 import requests
 from src.utils.types import NotionalValues, InputAmounts
@@ -167,3 +169,17 @@ def calculate_pnl(response_binance, receipt_uniswap):
     else:  # b_side == "SELL"
         total_pnl = binance_pnl - uniswap_usdc_amount - gas_fee_usdc
     return total_pnl.quantize(Decimal("1e-18"), rounding=ROUND_DOWN)
+
+
+def append_trade_to_csv(filename, trade_data):
+    """Appends trades to csv file in out/, adds current CET timestamp"""
+    cet_time = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+    trade_data = {"timestamp": cet_time, **trade_data}
+    out_path = os.path.join("out", filename)
+    os.makedirs("out", exist_ok=True)
+    file_exists = os.path.isfile(out_path)
+    with open(out_path, mode="a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=trade_data.keys())
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(trade_data)

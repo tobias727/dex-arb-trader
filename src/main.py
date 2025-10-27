@@ -16,6 +16,7 @@ from src.utils.utils import (
     calculate_pnl,
     check_ip_change,
     load_pools,
+    append_trade_to_csv,
 )
 from src.utils.exceptions import QuoteError
 from src.utils.types import NotionalValues
@@ -36,6 +37,7 @@ async def main():
     time.perf_counter() is used for latency monitoring
     """
     out_log_name = "trading_bot" if TESTNET else "trading_bot_LIVE"
+    out_csv_name = "trades.csv" if TESTNET else "trades_LIVE.csv"
     logger = setup_logger(out_log_name)
     binance, uniswap, orchestrator, detector, telegram_bot = init_clients(
         logger, testnet=TESTNET
@@ -107,6 +109,18 @@ async def main():
                 )
                 balances = log_balances(binance, uniswap, logger, TESTNET)
                 input_amounts = calculate_input_amounts(balances, current_price=4_500)
+                append_trade_to_csv(
+                    out_csv_name,
+                    {
+                        "iteration_id": iteration_id,
+                        "detected_edge": edge,
+                        "b_side": b_side,
+                        "pnl": pnl,
+                        "response_binance": response_binance,
+                        "receipt_uniswap": receipt_uniswap,
+                        "balances_ex_post": balances,
+                    },
+                )
                 await telegram_bot.notify_executed(pnl)
 
             # 1M requests / day Alchemy is bottleneck
