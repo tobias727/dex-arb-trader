@@ -1,0 +1,300 @@
+import json
+import asyncio
+import aiohttp
+from web3 import Web3
+from eth_abi import encode
+from eth_abi.packed import encode_packed
+from src.config import (
+    TESTNET,
+    TOKEN0_INPUT,
+    UNICHAIN_UNISWAP_V4_QUOTER,
+    UNICHAIN_SEPOLIA_UNISWAP_V4_QUOTER,
+    UNICHAIN_CHAINID,
+    UNICHAIN_SEPOLIA_CHAINID,
+    TOKEN0_DECIMALS,
+    PRIVATE_KEY,
+    PRIVATE_KEY_TESTNET,
+    WALLET_ADDRESS,
+    WALLET_ADDRESS_TESTNET,
+    UNICHAIN_UNIVERSAL_ROUTER_ADDRESS,
+    UNICHAIN_SEPOLIA_UNIVERSAL_ROUTER_ADDRESS,
+    UNICHAIN_ETH_NATIVE,
+    UNICHAIN_USDC,
+    UNICHAIN_SEPOLIA_USDC,
+    UNICHAIN_RPC_URL,
+    ALCHEMY_API_KEY,
+    UNICHAIN_SEPOLIA_RPC_URL,
+    UNICHAIN_SEPOLIA_WS_URL,
+    UNICHAIN_WS_URL,
+    UNIVERSAL_ROUTER_ABI,
+    V4_QUOTER_ABI,
+)
+
+
+# pylint: disable=too-many-instance-attributes, too-few-public-methods
+class State:
+    """Runtime state container for UniswapV4Client."""
+
+    def __init__(self):
+        base_ws_url = UNICHAIN_SEPOLIA_WS_URL if TESTNET else UNICHAIN_WS_URL
+        base_rpc_url = UNICHAIN_SEPOLIA_RPC_URL if TESTNET else UNICHAIN_RPC_URL
+        api_key = ALCHEMY_API_KEY
+        self.url_ws = f"{base_ws_url}{api_key}"
+        self.url_rpc = f"{base_rpc_url}{api_key}"
+        self.web3_rpc = Web3(Web3.HTTPProvider(self.url_rpc))
+        self.wallet_address = WALLET_ADDRESS_TESTNET if TESTNET else WALLET_ADDRESS
+        self.private_key = PRIVATE_KEY_TESTNET if TESTNET else PRIVATE_KEY
+        self.chain_id = UNICHAIN_SEPOLIA_CHAINID if TESTNET else UNICHAIN_CHAINID
+        self.universal_router_address = (
+            UNICHAIN_SEPOLIA_UNIVERSAL_ROUTER_ADDRESS
+            if TESTNET
+            else UNICHAIN_UNIVERSAL_ROUTER_ADDRESS
+        )
+        self.v4_quoter_address = (
+            UNICHAIN_SEPOLIA_UNISWAP_V4_QUOTER
+            if TESTNET
+            else UNICHAIN_UNISWAP_V4_QUOTER
+        )
+        self.eth_native_address = UNICHAIN_ETH_NATIVE
+        self.usdc_address = UNICHAIN_SEPOLIA_USDC if TESTNET else UNICHAIN_USDC
+        self.signed_raw_tx_buy = None
+        self.signed_raw_tx_sell = None
+
+
+class UniswapV4Client:
+    """DEX client"""
+
+    def __init__(self, logger):
+        self.logger = logger
+        self.state = State()
+        # router contract
+        self.universal_router_contract = self.state.web3_rpc.eth.contract(
+            address=self.state.universal_router_address, abi=UNIVERSAL_ROUTER_ABI
+        )
+        # v4 quoter contract
+        self.v4_quoter_contract = self.state.web3_rpc.eth.contract(
+            address=self.state.v4_quoter_address, abi=V4_QUOTER_ABI
+        )
+        if not TESTNET:
+            self._check_web3_connection()
+        self.calldata_get_amounts_out = self.encode_get_amounts_out()
+        self.calldata_get_amounts_in = self.encode_get_amounts_in()
+
+    @staticmethod
+    async def decode_uniswap_quote(response_hex):
+        """Returns amount, gas"""
+        v1 = int(response_hex[2:66], 16)
+        v2 = int(response_hex[66:130], 16)
+        return v1, v2
+
+    async def execute_trade(self, side, ws):
+        """Broadcasts pre-signed tx via ws"""
+        exec_req = {
+            "jsonrpc": "2.0",
+            "id": 61,
+            "method": "eth_sendRawTransaction",
+            "params": [
+                (
+                    self.state.signed_raw_tx_buy
+                    if side == "BUY"
+                    else self.state.signed_raw_tx_sell
+                )
+            ],
+        }
+        await ws.send(json.dumps(exec_req))
+
+    async def on_new_block(self, ws):
+        """Sends RFQ via ws"""
+        # amounts out
+        sim_req_out = {
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "eth_call",
+            "params": [
+                {
+                    "to": self.state.v4_quoter_address,
+                    "data": self.calldata_get_amounts_out,
+                },
+                "pending",
+            ],
+        }
+        # amounts in
+        sim_req_in = {
+            "jsonrpc": "2.0",
+            "id": 43,
+            "method": "eth_call",
+            "params": [
+                {
+                    "to": self.state.v4_quoter_address,
+                    "data": self.calldata_get_amounts_in,
+                },
+                "pending",
+            ],
+        }
+        await ws.send(json.dumps(sim_req_out))
+        await ws.send(json.dumps(sim_req_in))
+
+    def encode_get_amounts_out(self):
+        """Returns calldata for Bid"""
+        pool_key = (
+            self.state.eth_native_address,
+            self.state.usdc_address,
+            500,
+            10,
+            "0x0000000000000000000000000000000000000000",
+        )
+        quote_input_params = (
+            pool_key,
+            True,
+            int(TOKEN0_INPUT * 10**TOKEN0_DECIMALS),
+            b"",
+        )
+        return self.v4_quoter_contract.encode_abi(
+            "quoteExactInputSingle", args=[quote_input_params]
+        )
+
+    def encode_get_amounts_in(self):
+        """Returns calldata for Ask"""
+        pool_key = (
+            self.state.eth_native_address,
+            self.state.usdc_address,
+            500,
+            10,
+            "0x0000000000000000000000000000000000000000",
+        )
+        quote_input_params = (
+            pool_key,
+            False,
+            int(TOKEN0_INPUT * 10**TOKEN0_DECIMALS),
+            b"",
+        )
+        return self.v4_quoter_contract.encode_abi(
+            "quoteExactOutputSingle", args=[quote_input_params]
+        )
+
+    def encode_and_sign_exec_tx(self, zero_for_one: bool):
+        """zero_for_one: False for BUY, True for SELL"""
+        amount_in = int(TOKEN0_INPUT * 10**TOKEN0_DECIMALS)
+        min_amount_out = 0
+        exact_input_single_params = encode(
+            [
+                "address",
+                "address",
+                "uint24",
+                "int24",
+                "address",
+                "bool",
+                "uint128",
+                "uint128",
+                "bytes",
+            ],
+            [
+                self.state.eth_native_address,  # currency0
+                self.state.usdc_address,  # currency1
+                500,  # fee (uint24)
+                10,  # tickSpacing (int24)
+                "0x0000000000000000000000000000000000000000",  # poolHooks
+                zero_for_one,  # zeroForOne
+                amount_in,  # amountIn
+                min_amount_out,  # minAmountOut
+                b"",  # hookData
+            ],
+        )
+        params_1 = encode(
+            ["address", "uint128"],
+            [
+                (
+                    self.state.eth_native_address
+                    if zero_for_one
+                    else self.state.usdc_address
+                ),
+                amount_in,
+            ],
+        )
+        params_2 = encode(
+            ["address", "uint128"],
+            [
+                (
+                    self.state.usdc_address
+                    if zero_for_one
+                    else self.state.eth_native_address
+                ),
+                min_amount_out,
+            ],
+        )
+        actions = encode_packed(["uint8", "uint8", "uint8"], [0x06, 0x0C, 0x0F])
+        inputs = [
+            encode(
+                ["bytes", "bytes[]"],
+                [actions, [exact_input_single_params, params_1, params_2]],
+            )
+        ]
+        commands = encode_packed(["uint8"], [0x10])
+        calldata = self.universal_router_contract.encode_abi(
+            "execute", args=[commands, inputs]
+        )
+        tx = {
+            "from": self.state.wallet_address,
+            "to": self.state.universal_router_address,
+            "data": calldata,
+            "value": amount_in if zero_for_one else 0,
+            "nonce": self.state.web3_rpc.eth.get_transaction_count(
+                self.state.wallet_address, "pending"
+            ),
+            "gas": 1_000_000,
+            "maxFeePerGas": 600_000,
+            "type": "0x2",
+            "maxPriorityFeePerGas": 100_000,
+            "chainId": self.state.chain_id,
+        }
+        signed = self.state.web3_rpc.eth.account.sign_transaction(
+            tx, self.state.private_key
+        )
+        return signed.raw_transaction.hex()
+
+    async def get_balances(self):
+        """Returns balances for USDC and ETH"""
+        async with aiohttp.ClientSession() as session:
+            # eth
+            payload_eth = {
+                "jsonrpc": "2.0",
+                "method": "eth_getBalance",
+                "params": [self.state.wallet_address, "pending"],
+                "id": 101,
+            }
+            # usdc (erc20)
+            payload_usdc = {
+                "jsonrpc": "2.0",
+                "method": "eth_call",
+                "params": [
+                    {
+                        "to": self.state.usdc_address,
+                        # method-id + address (without "0x")
+                        "data": "0x70a08231000000000000000000000000"
+                        + self.state.wallet_address[2:],
+                    },
+                    "pending",
+                ],
+                "id": 102,
+            }
+            # Parallel senden
+            tasks = [
+                session.post(self.state.url_rpc, json=payload_eth),
+                session.post(self.state.url_rpc, json=payload_usdc),
+            ]
+            resp_eth, resp_usdc = await asyncio.gather(*tasks)
+            result_eth = await resp_eth.json()
+            result_usdc = await resp_usdc.json()
+
+            balance_eth = int(result_eth["result"], 16) / 1e18  # ETH → float
+            balance_usdc = int(result_usdc["result"], 16) / 1e6  # USDC → float
+
+            return balance_eth, balance_usdc
+
+    async def get_trade_result(self, tx_hash):
+        """Returns tx_receipt given tx_hash"""
+        return await self.state.web3_rpc.eth.wait_for_transaction_receipt(tx_hash)
+
+    def _check_web3_connection(self):
+        if not self.state.web3_rpc.is_connected():
+            raise ConnectionError("Could not establish a connection with Alchemy RPC")

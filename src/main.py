@@ -1,259 +1,302 @@
-import os
+import json
 import sys
-import logging
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 import time
-from src.engine.orchestrator import Orchestrator
-from src.engine.detector import Detector
-from src.binance.rpc_client import BinanceClientRpc
-from src.unichain.clients.v4client import UnichainV4Client
+import websockets
+from src.clients.binance_client import BinanceClient
+from src.clients.uniswap_client import UniswapV4Client
 from src.utils.utils import (
-    elapsed_ms,
-    check_pre_trade,
-    get_public_ip,
-    calculate_input_amounts,
     calculate_pnl,
-    check_ip_change,
-    load_pools,
+    monitor_ip_change,
     append_trade_to_csv,
+    setup_logger,
 )
-from src.utils.exceptions import QuoteError
-from src.utils.types import NotionalValues
 from src.utils.telegram_bot import TelegramBot
 from src.config import (
     TOKEN0_INPUT,
+    MIN_EDGE,
+    TESTNET,
+    GAS_RESERVE,
+    BINANCE_FEE,
+    TOKEN1_DECIMALS,
+    BINANCE_BASE_URL_WS,
 )
 
-TESTNET = True
+
+# pylint: disable=too-many-instance-attributes, too-few-public-methods
+class State:
+    """Runtime state container for DexArbTrader."""
+
+    def __init__(self):
+        self.orderbook = {}
+        self.quotes = {}
+        self.balances = {
+            "binance": {"ETH": None, "USDC": None},
+            "uniswap": {"ETH": None, "USDC": None},
+        }
+        self.tradeable_sides = {"CEX_buy_DEX_sell": False, "CEX_sell_DEX_buy": False}
+        self.last_trade_result = {"response_binance": {}, "receipt_uniswap": {}}
+        self.ws = None
+        self.balance_update_task = None
+        self.exec_sign_task = None
+        self.new_block_ts = None
+        self.u_executed_latency = None
+        self.b_perf_counter = None
+        self.block_processing_paused = False
 
 
-async def main():
-    """
-    Entrypoint for trading bot
-    Execution pattern is:
-        1. binance + uniswap quote,
-        2. binance + uniswap execution,
-    time.perf_counter() is used for latency monitoring
-    """
-    out_log_name = "trading_bot" if TESTNET else "trading_bot_LIVE"
-    out_csv_name = "trades.csv" if TESTNET else "trades_LIVE.csv"
-    logger = setup_logger(out_log_name)
-    binance, uniswap, orchestrator, detector, telegram_bot = init_clients(
-        logger, testnet=TESTNET
-    )
+class DexArbTrader:
+    """Core logic for async trader"""
 
-    # balances / inputs
-    balances = log_balances(binance, uniswap, logger, TESTNET)
-    input_amounts = calculate_input_amounts(balances, current_price=4_500)
-    logger.info("Input amounts: %s", input_amounts)
+    def __init__(self):
+        self.logger = setup_logger()
+        self.binance_client = BinanceClient(self.logger)
+        self.uniswap_client = UniswapV4Client(self.logger)
+        self.telegram_bot = TelegramBot()
+        self.state = State()
 
-    # iteration count
-    iteration_id = 0
+    async def run(self):
+        """Entrypoint"""
+        await self.binance_client.init_session()
+        self.request_balance_update()
+        self.request_exec_signing()
+        try:
+            async with asyncio.TaskGroup() as tg:
+                _task1 = tg.create_task(self.listen_uniswap())
+                _task2 = tg.create_task(self.listen_binance())
+                _task3 = tg.create_task(monitor_ip_change(self.logger))
+        finally:
+            # manual session for faster requests
+            await self.binance_client.close()
 
-    # monitor IP for Binance IP allowlist
-    initial_ip = get_public_ip()
-    last_ip_check_time = time.time()
+    async def listen_uniswap(self):
+        """Uniswap listener with Flashblocks as pending enabled"""
+        try:
+            async with websockets.connect(
+                self.uniswap_client.state.url_ws
+            ) as self.state.ws:
+                sub_req = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "eth_subscribe",
+                    "params": ["newHeads"],
+                }
+                self.logger.info("------------------")
+                await self.state.ws.send(json.dumps(sub_req))
+                while True:
+                    msg = await self.state.ws.recv()
+                    msg_obj = json.loads(msg)
+                    if self.state.block_processing_paused:
+                        if (
+                            self.state.balance_update_task is None
+                            or self.state.balance_update_task.done()
+                        ) and (
+                            self.state.exec_sign_task is None
+                            or self.state.exec_sign_task.done()
+                        ):
+                            self.state.block_processing_paused = False
+                        else:
+                            continue
+                    # new block event
+                    if msg_obj.get("method") == "eth_subscription":
+                        self.state.quotes.clear()
+                        self.state.new_block_ts = time.perf_counter()
+                        print("DEBUG: NEW Block")
+                        await self.uniswap_client.on_new_block(self.state.ws)
+                    # Bid
+                    elif msg_obj.get("id") == 42:
+                        bid_latency = time.perf_counter() - self.state.new_block_ts
+                        amount_out, gas = (
+                            await self.uniswap_client.decode_uniswap_quote(
+                                msg_obj.get("result")
+                            )
+                        )
+                        self.state.quotes["bid"] = (amount_out, gas)
+                        print("DEBUG: %s", amount_out)
+                    # Ask
+                    elif msg_obj.get("id") == 43:
+                        ask_latency = time.perf_counter() - self.state.new_block_ts
+                        amount_in, gas = await self.uniswap_client.decode_uniswap_quote(
+                            msg_obj.get("result")
+                        )
+                        self.state.quotes["ask"] = (amount_in, gas)
+                        print("DEBUG: %s", amount_in)
+                    # Executed
+                    elif msg_obj.get("id") == 61:
+                        self.state.u_executed_latency = (
+                            time.perf_counter() - self.state.new_block_ts
+                        )
+                        self.request_exec_signing()
+                        self.state.last_trade_result["receipt_uniswap"] = (
+                            await self.uniswap_client.get_trade_result(
+                                msg_obj.get("result")
+                            )
+                        )
+                        if self.state.last_trade_result["response_binance"] is not None:
+                            await self.process_trade_result()
+                    else:
+                        self.logger.warning("Unknown msg: %s", msg)
 
-    try:
-        while True:
-            # IP Change check + iter couter
-            last_ip_check_time = check_ip_change(initial_ip, last_ip_check_time)
-            iteration_id += 1
+                    if (
+                        "bid" in self.state.quotes
+                        and "ask" in self.state.quotes
+                        and self.state.orderbook
+                    ):
+                        await self.detect()
+                        self.logger.info(
+                            "Quotes: b_bid=%s, b_ask=%s, u_bid=%s, u_ask=%s | new_block_ts=%.4fs, u_bid_latency=%.4fs, u_ask_latency=%.4fs",
+                            self.state.orderbook["b"],
+                            self.state.orderbook["a"],
+                            self.state.quotes["bid"][0],
+                            self.state.quotes["ask"][0],
+                            self.state.new_block_ts,
+                            # pylint: disable=used-before-assignment.
+                            bid_latency,
+                            ask_latency,
+                        )
+                        self.state.quotes.clear()
+        except Exception as e:
+            await self.telegram_bot.notify_crashed(e)
+            self.logger.error("Bot crashed: %s", e)
+            sys.exit(1)
 
-            # 1. Get Binance/Uniswap quotes
-            start_time = time.perf_counter()
-            quotes = get_quotes(logger, iteration_id, start_time, uniswap, binance)
-            if quotes is None:
-                continue  # skip if quoting failed
+    async def listen_binance(self):
+        """Binance listener, top of book only"""
+        binance_uri = f"{BINANCE_BASE_URL_WS}/ws/ethusdc@bookTicker"
+        async with websockets.connect(binance_uri) as ws:
+            while True:
+                msg = await ws.recv()
+                await self.update_order_book(msg)
 
-            # 2. Detect
-            b_side, u_side, edge = detector.detect(quotes)
+    async def update_order_book(self, msg):
+        """Updates local order book"""
+        data = json.loads(msg)
+        self.state.orderbook.update(data)
 
-            # 3. Execute
-            if (edge) and (
-                (input_amounts.binance_buy is not None and b_side == "BUY")
-                or (input_amounts.binance_sell is not None and b_side == "SELL")
-            ):
-                # check sufficient balances
-                check_pre_trade(
-                    logger,
-                    balances,
-                    b_side,
-                    u_side,
-                    quotes,
-                    buffer=1.01,
+    async def detect(self):
+        """Edge detector, calls execute"""
+        adj_b_bid = int(
+            float(self.state.orderbook["b"])
+            * 10**TOKEN1_DECIMALS
+            * float(TOKEN0_INPUT)
+            * (1 - BINANCE_FEE)
+        )  # bid * input * (1-fee) * 10^6
+        adj_b_ask = int(
+            float(self.state.orderbook["a"])
+            * 10**TOKEN1_DECIMALS
+            * float(TOKEN0_INPUT)
+            * (1 + BINANCE_FEE)
+        )  # ask * input * (1+fee) * 10^6
+        adj_u_bid = self.state.quotes["bid"][0]  # ignore gas for now
+        adj_u_ask = self.state.quotes["ask"][0]  # ignore gas for now
+        edge = adj_u_bid - adj_b_ask
+        print("DEBUG2: ", edge)
+        # CEX_buy_DEX_sell
+        if edge > MIN_EDGE and self.state.tradeable_sides["CEX_buy_DEX_sell"]:
+            await self.execute("CEX_buy_DEX_sell")
+        elif edge > 0:
+            self.logger.warning("Detected: CEX_buy_DEX_sell, %s", f"{edge:_}")
+        # CEX_sell_DEX_buy
+        edge = adj_b_bid - adj_u_ask
+        if edge > MIN_EDGE and self.state.tradeable_sides["CEX_sell_DEX_buy"]:
+            await self.execute("CEX_sell_DEX_buy")
+        elif edge > 0:
+            self.logger.warning("Detected: CEX_sell_DEX_buy, %s", f"{edge:_}")
+
+    async def execute(self, side):
+        """Execute trade"""
+        task1 = None
+        if side == "CEX_buy_DEX_sell":
+            async with asyncio.TaskGroup() as tg:
+                task1 = tg.create_task(self.binance_client.execute_trade("BUY"))
+                _task2 = tg.create_task(
+                    self.uniswap_client.execute_trade("SELL", self.state.ws)
                 )
-
-                response_binance, receipt_uniswap = orchestrator.execute(
-                    b_side,
-                    u_side,
-                    binance,
-                    uniswap,
-                    iteration_id,
-                    start_time,
-                    input_amounts,
+        elif side == "CEX_sell_DEX_buy":
+            async with asyncio.TaskGroup() as tg:
+                task1 = tg.create_task(self.binance_client.execute_trade("SELL"))
+                _task2 = tg.create_task(
+                    self.uniswap_client.execute_trade("BUY", self.state.ws)
                 )
-
-                logger.info(
-                    "[#%d] %s Finished iteration...",
-                    iteration_id,
-                    elapsed_ms(start_time),
-                )
-                await asyncio.sleep(2)  # wait for balances uniswap
-                pnl = calculate_pnl(response_binance, receipt_uniswap)
-                logger.info(
-                    "[#%d] PnL: %s USDC\n",
-                    iteration_id,
-                    pnl,
-                )
-                balances = log_balances(binance, uniswap, logger, TESTNET)
-                input_amounts = calculate_input_amounts(balances, current_price=4_500)
-                append_trade_to_csv(
-                    out_csv_name,
-                    {
-                        "iteration_id": iteration_id,
-                        "detected_edge": edge,
-                        "b_side": b_side,
-                        "pnl": pnl,
-                        "response_binance": response_binance,
-                        "receipt_uniswap": receipt_uniswap,
-                        "balances_ex_post": balances,
-                    },
-                )
-                await telegram_bot.notify_executed(pnl)
-
-            # 1M requests / day Alchemy is bottleneck
-            await asyncio.sleep(1.5)
-
-    except Exception as e:
-        logger.error("Main loop crashed: %s", e)
-        asyncio.run(telegram_bot.notify_crashed(e))
-        sys.exit(1)
-
-
-def get_quotes(
-    logger: logging.Logger,
-    iteration_id,
-    start_time,
-    uniswap: UnichainV4Client,
-    binance: BinanceClientRpc,
-) -> NotionalValues:
-    """Fetch quotes from Uniswap and Binance"""
-
-    def _fetch_uniswap():
-        t0 = time.perf_counter()
-        uniswap_bid_notional, uniswap_ask_notional = (
-            uniswap.estimate_swap_price()
-        )  # returns [price, gas]
-        t1 = time.perf_counter()
-        logger.info(
-            "[#%d] %s Uniswap: %s, %s [L %.1f ms]",
-            iteration_id,
-            elapsed_ms(start_time),
-            f"{uniswap_bid_notional[0]:_}",
-            f"{uniswap_ask_notional[0]:_}",
-            (t1 - t0) * 1000,
+        self.state.last_trade_result["response_binance"], self.state.b_perf_counter = (
+            task1.result()
         )
-        return uniswap_bid_notional, uniswap_ask_notional
+        if self.state.last_trade_result["receipt_uniswap"] is not None:
+            await self.process_trade_result()
+        self.request_balance_update()
 
-    def _fetch_binance():
-        t2 = time.perf_counter()
-        binance_bid_notional, binance_ask_notional = binance.get_price()
-        t3 = time.perf_counter()
-        logger.info(
-            "[#%d] %s Binance: %s, %s [L %.1f ms]",
-            iteration_id,
-            elapsed_ms(start_time),
-            f"{binance_bid_notional:_}",
-            f"{binance_ask_notional:_}",
-            (t3 - t2) * 1000,
+    async def process_trade_result(self):
+        """Calculates PnL, saves to csv and notifies telegram bot"""
+        pnl = calculate_pnl(
+            self.state.last_trade_result["response_binance"],
+            self.state.last_trade_result["receipt_uniswap"],
         )
-        return binance_bid_notional, binance_ask_notional
-
-    try:
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            future_uniswap = executor.submit(_fetch_uniswap)
-            future_binance = executor.submit(_fetch_binance)
-
-            u_bid, u_ask = future_uniswap.result()
-            b_bid, b_ask = future_binance.result()
-
-        return NotionalValues(
-            b_bid,
-            b_ask,
-            u_bid[0],
-            u_ask[0],
+        b_executed_latency = self.state.b_perf_counter - self.state.new_block_ts
+        self.logger.info(
+            "Executed: pnl=%s, u_executed_latency=%s, b_executed_latency=%s",
+            pnl,
+            self.state.u_executed_latency,
+            b_executed_latency,
         )
-    except QuoteError as e:
-        logger.error("Iteration skipped due to data fetch error: %s", e)
-        return None
-    except Exception as e:
-        logger.error("Iteration skipped due to unexpected error: %s", e)
-        return None
+        await self.telegram_bot.notify_executed(pnl)
+        append_trade_to_csv(
+            "trades.csv" if TESTNET else "trades_LIVE.csv",
+            {
+                "response_binance": self.state.last_trade_result["response_binance"],
+                "receipt_uniswap": self.state.last_trade_result["receipt_uniswap"],
+                "binance_side": self.state.last_trade_result["response_binance"][
+                    "side"
+                ],
+                "pnl": pnl,
+            },
+        )
+        self.state.last_trade_result = {"response_binance": {}, "receipt_uniswap": {}}
 
+    def request_balance_update(self):
+        """Starts update_balances and blocks processing until refreshed"""
+        self.state.block_processing_paused = True
+        if not self.state.balance_update_task or self.state.balance_update_task.done():
+            self.state.balance_update_task = asyncio.create_task(self.update_balances())
 
-def log_balances(
-    binance: BinanceClientRpc,
-    uniswap: UnichainV4Client,
-    logger: logging.Logger,
-    testnet: bool = False,
-):
-    """Logs Balances for Binance and Unichain"""
-    testnet_flag = "[TESTNET] " if testnet else ""
-    b_eth, b_usdc = binance.get_account_info()
-    logger.info(
-        testnet_flag + "BALANCES BINANCE: ETH %s, USDC %s",
-        b_eth,
-        b_usdc,
-    )
-    u_eth, u_usdc = uniswap.get_balances()
-    logger.info(
-        testnet_flag + "BALANCES UNISWAP: ETH %s, USDC %s",
-        u_eth,
-        u_usdc,
-    )
-    return {
-        "binance": {"ETH": b_eth, "USDC": b_usdc},
-        "uniswap": {"ETH": u_eth, "USDC": u_usdc},
-    }
+    def request_exec_signing(self):
+        """Starts async task for encode+sign and blocks processing until done."""
+        self.state.block_processing_paused = True
+        if not self.state.exec_sign_task or self.state.exec_sign_task.done():
+            self.state.exec_sign_task = asyncio.create_task(
+                self.update_uniswap_exec_signed_tx()
+            )
 
+    async def update_uniswap_exec_signed_tx(self):
+        """Updates pre-signed tx with current nonce"""
+        self.uniswap_client.state.signed_raw_tx_buy = (
+            self.uniswap_client.encode_and_sign_exec_tx(zero_for_one=False)
+        )
+        self.uniswap_client.state.signed_raw_tx_sell = (
+            self.uniswap_client.encode_and_sign_exec_tx(zero_for_one=True)
+        )
 
-def init_clients(logger: logging.Logger, testnet: bool = False):
-    """Initializes clients"""
-    binance = BinanceClientRpc(logger, TOKEN0_INPUT, testnet)
-    pools = load_pools("unichain_v4_pools.json")
-    uniswap = UnichainV4Client(pools, logger, testnet)
-    orchestrator = Orchestrator(logger)
-    detector = Detector(logger)
-    telegram_bot = TelegramBot()
-    return binance, uniswap, orchestrator, detector, telegram_bot
-
-
-def setup_logger(name: str, log_dir: str = "out/logs") -> logging.Logger:
-    """Create and configure logger with console + file handlers."""
-    log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
-
-    os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, f"{name}.log")
-
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_formatter)
-
-    # File handler
-    file_handler = logging.FileHandler(log_file, mode="a")
-    file_handler.setFormatter(log_formatter)
-
-    # Logger setup
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
-
-    return logger
+    async def update_balances(self):
+        """Updates self.state.balances"""
+        b_eth, b_usdc = await self.binance_client.get_balances()
+        u_eth, u_usdc = await self.uniswap_client.get_balances()
+        self.state.balances["binance"] = {"ETH": b_eth, "USDC": b_usdc}
+        self.state.balances["uniswap"] = {"ETH": u_eth, "USDC": u_usdc}
+        # TODO: 4_500 price
+        self.state.tradeable_sides["CEX_buy_DEX_sell"] = (
+            b_usdc > TOKEN0_INPUT * 4_500 and u_eth > (TOKEN0_INPUT + GAS_RESERVE)
+        )
+        self.state.tradeable_sides["CEX_sell_DEX_buy"] = (
+            b_eth > TOKEN0_INPUT and u_usdc > TOKEN0_INPUT * 4_500
+        )
+        self.logger.info(
+            "Balances: b_eth=%s, b_usdc=%s, u_eth=%s, u_usdc=%s",
+            b_eth,
+            b_usdc,
+            u_eth,
+            u_usdc,
+        )
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    bot = DexArbTrader()
+    asyncio.run(bot.run())

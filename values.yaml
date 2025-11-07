@@ -1,81 +1,44 @@
-stream_duration: 8000
-latest: false # overwrite latest file
-
 execution:
-  active_trading_pair: ETHUSDC
-  active_token0: ETH
-  active_token1: USDC
+  testnet: True
   token0_input: 0.0020 # ETH
   token0_decimals: 18
   token1_decimals: 6
   binance_fee: 0.00095 # https://www.binance.com/en/fee/trading
+  # binance_min_qty: 0.0001
+  # binance_step_size: 0.0001
+  # binance_min_notional: 5.0
   min_edge: 10_000 # 1 cent = 10_000
-  binance_min_qty: 0.0001
-  binance_step_size: 0.0001
-  binance_min_notional: 5.0
   gas_reserve: 0.000001 # ensuring enough gas left for swaps
 
 binance:
   base_url_rpc: https://api.binance.com
   base_url_rpc_testnet: https://testnet.binance.vision
-  base_url: wss://stream.binance.com:9443
-  update_interval: 1000ms # 1000ms or 100ms
-  order_book_depth: 10 # 5, 10 or 20
-  token_pairs:
-    - ethusdc
-    - wbtceth
-    - unieth
-    - ethusdt
-    - uniusdc
-    - usdcusdt
-    - ethdai
-
-mainnet:
-  chain_id: 1
-  uniswap:
-    v2_contract_addresses:
-      router_02: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
-  sushiswap:
-    contract_addresses:
-      router: "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
+  base_url_ws: wss://stream.binance.com:9443
 
 unichain:
   chain_id: 130
-  alchemy_rpc_base_url: https://unichain-mainnet.g.alchemy.com/v2/
-  infura_rpc_base_url: https://unichain-mainnet.infura.io/v3/
+  rpc_url: https://unichain-mainnet.g.alchemy.com/v2/
+  ws_url: wss://unichain-mainnet.g.alchemy.com/v2/
   uniswap:
-    active_protocol_version: v4 # v4 or v2
     # https://docs.uniswap.org/contracts/v4/deployments
-    # https://docs.uniswap.org/contracts/v2/reference/smart-contracts/v2-deployments
     contract_deployments:
-      v2_router_02: "0x284f11109359a7e1306c3e447ef14d38400063ff"
-      v2_factory: "0x1f98400000000000000000000000000000000002"
       universal_router: "0xef740bf23acae26f6492b10de645d6b98dc8eaf3"
       permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3"
       v4_quoter: "0x333e3c607b141b18ff6de9f258db6e77fe7491e0"
-      v4_stateview: "0x86e8631a016f9068c3f085faf484ee3f5fdee8f2"
-      v4_pool_manager: "0x1f98400000000000000000000000000000000004"
     # https://docs.unichain.org/docs/technical-information/contract-addresses
     tokens:
-      weth: "0x4200000000000000000000000000000000000006"
       usdc: "0x078D782b760474a361dDA0AF3839290b0EF57AD6"
       eth_native: "0x0000000000000000000000000000000000000000"
-    universal_router_commands:
-      V4_SWAP: 0x10
-      WRAP_ETH: 0x0b
-      UNWRAP_ETH: 0x0c
-      BALANCE_CHECK_ERC20: 0x0e
 
 unichain-sepolia-testnet:
   chain_id: 1301
   rpc_url: https://sepolia.unichain.org/
+  ws_url: wss://unichain-sepolia.g.alchemy.com/v2/
   uniswap:
     contract_deployments:
       universal_router: "0xf70536B3bcC1bD1a972dc186A2cf84cC6da6Be5D"
-      pool_manager: "0x00b036b58a818b1bc34d502d3fe730db729e62ac"
-      state_view: "0xc199f1072a74d4e905aba1a84d9a45e2546b6222"
       permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+      v4_quoter: "0x56dcd40a3f2d466f48e7f48bdbe5cc9b92ae4472"
     tokens:
       usdc: "0x31d0220469e10c4E71834a79b1f276d740d3768F"
-      weth9: "0x4200000000000000000000000000000000000006"
       eth_native: "0x0000000000000000000000000000000000000000"

@@ -1,12 +1,20 @@
 import os
 import yaml
 from dotenv import load_dotenv
+from web3 import Web3
 
 
 def load_config(filepath="values.yaml"):
     """Load deployment config"""
     with open(filepath, "r", encoding="utf-8") as file:
         return yaml.safe_load(file)
+
+
+def validate_eth_address(address: str) -> str:
+    """Validates and converts an Ethereum address to checksum format"""
+    if not Web3.is_address(address):
+        raise ValueError(f"Invalid Ethereum address provided: {address}")
+    return Web3.to_checksum_address(address)
 
 
 load_dotenv()
@@ -29,98 +37,182 @@ PRIVATE_KEY_TESTNET = os.getenv("PRIVATE_KEY_TESTNET")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# Mainnet
-CHAINID_MAINNET = config["mainnet"]["chain_id"]
-MAINNET_UNISWAP_V2_ROUTER_02 = config["mainnet"]["uniswap"]["v2_contract_addresses"][
-    "router_02"
-]
-MAINNET_SUSHISWAP_ROUTER_ADDRESS = config["mainnet"]["sushiswap"]["contract_addresses"][
-    "router"
-]
+# Unichain (Mainnet)
+UNICHAIN_CHAINID = config["unichain"]["chain_id"]
+UNICHAIN_RPC_URL = config["unichain"]["rpc_url"]
+UNICHAIN_WS_URL = config["unichain"]["ws_url"]
+## Contract addresses
+UNICHAIN_UNIVERSAL_ROUTER_ADDRESS = validate_eth_address(
+    config["unichain"]["uniswap"]["contract_deployments"]["universal_router"]
+)
+UNICHAIN_UNISWAP_V4_QUOTER = validate_eth_address(
+    config["unichain"]["uniswap"]["contract_deployments"]["v4_quoter"]
+)
+UNICHAIN_UNISWAP_PERMIT2 = validate_eth_address(
+    config["unichain"]["uniswap"]["contract_deployments"]["permit2"]
+)
+## Token addresses
+UNICHAIN_USDC = validate_eth_address(config["unichain"]["uniswap"]["tokens"]["usdc"])
+UNICHAIN_ETH_NATIVE = validate_eth_address(
+    config["unichain"]["uniswap"]["tokens"]["eth_native"]
+)
 
-# Unichain
-CHAINID_UNICHAIN = config["unichain"]["chain_id"]
-ALCHEMY_UNICHAIN_BASE_RPC_URL = config["unichain"]["alchemy_rpc_base_url"]
-INFURA_UNICHAIN_BASE_RPC_URL = config["unichain"]["infura_rpc_base_url"]
-UNISWAP_PROTOCOL_VERSION = config["unichain"]["uniswap"]["active_protocol_version"]
-UNICHAIN_UNIVERSAL_ROUTER_ADDRESS = config["unichain"]["uniswap"][
-    "contract_deployments"
-]["universal_router"]
-UNICHAIN_V4_POOL_MANAGER = config["unichain"]["uniswap"]["contract_deployments"][
-    "v4_pool_manager"
-]
-UNICHAIN_UNISWAP_V2_ROUTER_02 = config["unichain"]["uniswap"]["contract_deployments"][
-    "v2_router_02"
-]
-UNICHAIN_UNISWAP_V2_FACTORY = config["unichain"]["uniswap"]["contract_deployments"][
-    "v2_factory"
-]
-UNICHAIN_UNISWAP_V4_QUOTER = config["unichain"]["uniswap"]["contract_deployments"][
-    "v4_quoter"
-]
-UNICHAIN_UNISWAP_V4_STATEVIEW = config["unichain"]["uniswap"]["contract_deployments"][
-    "v4_stateview"
-]
-UNICHAIN_UNISWAP_PERMIT2 = config["unichain"]["uniswap"]["contract_deployments"][
-    "permit2"
-]
-UNICHAIN_WETH = config["unichain"]["uniswap"]["tokens"]["weth"]
-UNICHAIN_USDC = config["unichain"]["uniswap"]["tokens"]["usdc"]
-UNICHAIN_ETH_NATIVE = config["unichain"]["uniswap"]["tokens"]["eth_native"]
-COMMAND_V4_SWAP = config["unichain"]["uniswap"]["universal_router_commands"]["V4_SWAP"]
-COMMAND_WRAP_ETH = config["unichain"]["uniswap"]["universal_router_commands"][
-    "WRAP_ETH"
-]
-COMMAND_UNWRAP_ETH = config["unichain"]["uniswap"]["universal_router_commands"][
-    "UNWRAP_ETH"
-]
-COMMAND_BALANCE_CHECK_ERC20 = config["unichain"]["uniswap"][
-    "universal_router_commands"
-]["BALANCE_CHECK_ERC20"]
+# Unichain Sepolia (Testnet)
+UNICHAIN_SEPOLIA_CHAINID = config["unichain-sepolia-testnet"]["chain_id"]
+UNICHAIN_SEPOLIA_RPC_URL = config["unichain-sepolia-testnet"]["rpc_url"]
+UNICHAIN_SEPOLIA_WS_URL = config["unichain-sepolia-testnet"]["ws_url"]
+## Contract addresses
+UNICHAIN_SEPOLIA_UNIVERSAL_ROUTER_ADDRESS = validate_eth_address(
+    config["unichain-sepolia-testnet"]["uniswap"]["contract_deployments"][
+        "universal_router"
+    ]
+)
+UNICHAIN_SEPOLIA_UNISWAP_V4_QUOTER = validate_eth_address(
+    config["unichain-sepolia-testnet"]["uniswap"]["contract_deployments"]["v4_quoter"]
+)
+UNICHAIN_SEPOLIA_UNISWAP_PERMIT2 = validate_eth_address(
+    config["unichain-sepolia-testnet"]["uniswap"]["contract_deployments"]["permit2"]
+)
+## Token addresses
+UNICHAIN_SEPOLIA_USDC = validate_eth_address(
+    config["unichain-sepolia-testnet"]["uniswap"]["tokens"]["usdc"]
+)
+UNICHAIN_SEPOLIA_ETH_NATIVE = validate_eth_address(
+    config["unichain-sepolia-testnet"]["uniswap"]["tokens"]["eth_native"]
+)
 
-# Unichain testnet
-CHAINID_UNICHAIN_SEPOLIA_TESTNET = config["unichain-sepolia-testnet"]["chain_id"]
-ALCHEMY_UNICHAIN_SEPOLIA_RPC_URL = config["unichain-sepolia-testnet"]["rpc_url"]
-UNICHAIN_SEPOLIA_ROUTER_ADDRESS = config["unichain-sepolia-testnet"]["uniswap"][
-    "contract_deployments"
-]["universal_router"]
-UNICHAIN_SEPOLIA_WETH9 = config["unichain-sepolia-testnet"]["uniswap"]["tokens"][
-    "weth9"
-]
-UNICHAIN_SEPOLIA_USDC = config["unichain-sepolia-testnet"]["uniswap"]["tokens"]["usdc"]
-UNICHAIN_SEPOLIA_ETH_NATIVE = config["unichain-sepolia-testnet"]["uniswap"]["tokens"][
-    "eth_native"
-]
-UNICHAIN_SEPOLIA_POOL_MANAGER = config["unichain-sepolia-testnet"]["uniswap"][
-    "contract_deployments"
-]["pool_manager"]
-UNICHAIN_SEPOLIA_STATE_VIEW = config["unichain-sepolia-testnet"]["uniswap"][
-    "contract_deployments"
-]["state_view"]
-UNICHAIN_SEPOLIA_PERMIT2 = config["unichain-sepolia-testnet"]["uniswap"][
-    "contract_deployments"
-]["permit2"]
-
-# Deployment
-STREAM_DURATION = config["stream_duration"]
-UPDATE_INTERVAL = config["binance"]["update_interval"]
-ORDER_BOOK_DEPTH = config["binance"]["order_book_depth"]
-BINANCE_TOKEN_PAIRS = config["binance"]["token_pairs"]
+# Binance
 BINANCE_BASE_URL_RPC = config["binance"]["base_url_rpc"]
 BINANCE_BASE_URL_RPC_TESTNET = config["binance"]["base_url_rpc_testnet"]
-BINANCE_BASE_URL_WS = config["binance"]["base_url"]
-LATEST = config["latest"]
+BINANCE_BASE_URL_WS = config["binance"]["base_url_ws"]
 
 # Execution
-ACTIVE_TRADING_PAIR = config["execution"]["active_trading_pair"]
-ACTIVE_TOKEN0 = config["execution"]["active_token0"]
-ACTIVE_TOKEN1 = config["execution"]["active_token1"]
+TESTNET = config["execution"]["testnet"]
 TOKEN0_INPUT = config["execution"]["token0_input"]
 TOKEN0_DECIMALS = config["execution"]["token0_decimals"]
 TOKEN1_DECIMALS = config["execution"]["token1_decimals"]
 BINANCE_FEE = config["execution"]["binance_fee"]
 MIN_EDGE = config["execution"]["min_edge"]
-BINANCE_MIN_QTY = config["execution"]["binance_min_qty"]
-BINANCE_STEP_SIZE = config["execution"]["binance_step_size"]
-BINANCE_MIN_NOTIONAL = config["execution"]["binance_min_notional"]
 GAS_RESERVE = config["execution"]["gas_reserve"]
+
+# ABIs
+UNIVERSAL_ROUTER_ABI = [
+    {
+        "inputs": [
+            {"internalType": "bytes", "name": "commands", "type": "bytes"},
+            {"internalType": "bytes[]", "name": "inputs", "type": "bytes[]"},
+        ],
+        "name": "execute",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function",
+    }
+]
+V4_QUOTER_ABI = [
+    {
+        "inputs": [
+            {
+                "components": [
+                    {
+                        "components": [
+                            {
+                                "internalType": "Currency",
+                                "name": "currency0",
+                                "type": "address",
+                            },
+                            {
+                                "internalType": "Currency",
+                                "name": "currency1",
+                                "type": "address",
+                            },
+                            {"internalType": "uint24", "name": "fee", "type": "uint24"},
+                            {
+                                "internalType": "int24",
+                                "name": "tickSpacing",
+                                "type": "int24",
+                            },
+                            {
+                                "internalType": "contract IHooks",
+                                "name": "hooks",
+                                "type": "address",
+                            },
+                        ],
+                        "internalType": "struct PoolKey",
+                        "name": "poolKey",
+                        "type": "tuple",
+                    },
+                    {"internalType": "bool", "name": "zeroForOne", "type": "bool"},
+                    {
+                        "internalType": "uint128",
+                        "name": "exactAmount",
+                        "type": "uint128",
+                    },
+                    {"internalType": "bytes", "name": "hookData", "type": "bytes"},
+                ],
+                "internalType": "struct IV4Quoter.QuoteExactSingleParams",
+                "name": "params",
+                "type": "tuple",
+            }
+        ],
+        "name": "quoteExactInputSingle",
+        "outputs": [
+            {"internalType": "uint256", "name": "amountOut", "type": "uint256"},
+            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"},
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+    {
+        "inputs": [
+            {
+                "components": [
+                    {
+                        "components": [
+                            {
+                                "internalType": "Currency",
+                                "name": "currency0",
+                                "type": "address",
+                            },
+                            {
+                                "internalType": "Currency",
+                                "name": "currency1",
+                                "type": "address",
+                            },
+                            {"internalType": "uint24", "name": "fee", "type": "uint24"},
+                            {
+                                "internalType": "int24",
+                                "name": "tickSpacing",
+                                "type": "int24",
+                            },
+                            {
+                                "internalType": "contract IHooks",
+                                "name": "hooks",
+                                "type": "address",
+                            },
+                        ],
+                        "internalType": "struct PoolKey",
+                        "name": "poolKey",
+                        "type": "tuple",
+                    },
+                    {"internalType": "bool", "name": "zeroForOne", "type": "bool"},
+                    {
+                        "internalType": "uint128",
+                        "name": "exactAmount",
+                        "type": "uint128",
+                    },
+                    {"internalType": "bytes", "name": "hookData", "type": "bytes"},
+                ],
+                "internalType": "struct IV4Quoter.QuoteExactSingleParams",
+                "name": "params",
+                "type": "tuple",
+            }
+        ],
+        "name": "quoteExactOutputSingle",
+        "outputs": [
+            {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"},
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+]

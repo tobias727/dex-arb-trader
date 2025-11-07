@@ -1,16 +1,15 @@
 import time
 import json
-import csv
 import os
+import logging
 from decimal import Decimal, ROUND_DOWN
-import requests
-from src.utils.types import NotionalValues, InputAmounts
+import csv
+import asyncio
+import aiohttp
 from src.config import (
-    TOKEN1_DECIMALS,
-    TOKEN0_INPUT,
-    GAS_RESERVE,
+    TESTNET,
 )
-from src.utils.exceptions import InsufficientBalanceError, IPChangeError
+from src.utils.exceptions import IPChangeError
 
 
 def load_pools(json_filepath):
@@ -19,108 +18,50 @@ def load_pools(json_filepath):
         return json.load(f)["data"]["pools"]
 
 
-def elapsed_ms(start_time: float) -> str:
-    """Return elapsed time since start in ms, formatted in brackets."""
-    return f"[ET { (time.perf_counter() - start_time) * 1000:.1f} ms]"
-
-
-def get_public_ip():
+async def fetch_public_ip():
     """Returns IP-Address to monitor for binance allowlist"""
-    try:
-        return requests.get("https://api.ipify.org", timeout=3).text
-    except Exception as e:
-        raise IPChangeError("Failed to retrieve initial public IP.") from e
+    async with aiohttp.ClientSession() as session:
+        async with session.get("https://api.ipify.org?format=json") as r:
+            data = await r.json()
+            return data["ip"]
 
 
-def check_ip_change(initial_ip, last_ip_check_time):
+async def monitor_ip_change(logger, interval=300):
     """Check if the IP address changed (last 5 minutes)"""
-    current_time = time.time()
-    if current_time - last_ip_check_time >= 300:  # 5 minutes
-        current_ip = get_public_ip()
+    initial_ip = await fetch_public_ip()
+    logger.info(f"Initial IP: {initial_ip}")
+    while True:
+        await asyncio.sleep(interval)
+        current_ip = await fetch_public_ip()
         if current_ip != initial_ip:
             raise IPChangeError(
-                f"Public IP changed from {initial_ip} to {current_ip}. Aborting for security."
+                f"Public IP changed: {initial_ip} -> {current_ip}. Aborting for security."
             )
-        last_ip_check_time = current_time
-    return last_ip_check_time
 
 
-def check_pre_trade(
-    logger,
-    balances: dict,
-    b_side: str,
-    u_side: str,
-    notional: NotionalValues,
-    buffer: float = 1.01,
-):
-    """only continue  if balances are sufficient"""
-    required = {
-        "binance": {
-            "BUY": notional.b_ask * buffer / 10**TOKEN1_DECIMALS,  # need USDC
-            "SELL": TOKEN0_INPUT,  # need ETH
-        },
-        "uniswap": {
-            "BUY": notional.u_ask * buffer / 10**TOKEN1_DECIMALS,  # need USDC
-            "SELL": TOKEN0_INPUT,  # need ETH
-        },
-    }
-    token_map = {"BUY": "USDC", "SELL": "ETH"}
+def setup_logger(log_dir: str = "out/logs") -> logging.Logger:
+    """Create and configure logger with console + file handlers."""
+    log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
 
-    # Binance check
-    needed_token = token_map[b_side]
-    if float(balances["binance"][needed_token]) < required["binance"][b_side]:
-        message = (
-            f"Binance {needed_token} insufficient: "
-            f"Required: {required['binance'][b_side]}, "
-            f"Available: {balances['binance'][needed_token]}"
-        )
-        logger.error(message)
-        raise InsufficientBalanceError(message)
+    os.makedirs(log_dir, exist_ok=True)
+    log_file_name = "trading_bot" if TESTNET else "trading_bot_LIVE"
+    log_file = os.path.join(log_dir, f"{log_file_name}.log")
 
-    # Uniswap check
-    needed_token = token_map[u_side]
-    if float(balances["uniswap"][needed_token]) < required["uniswap"][u_side]:
-        message = (
-            f"Uniswap {needed_token} insufficient: "
-            f"Required: {required['uniswap'][u_side]}, "
-            f"Available: {balances['uniswap'][needed_token]}"
-        )
-        logger.error(message)
-        raise InsufficientBalanceError(message)
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_formatter)
 
+    # File handler
+    file_handler = logging.FileHandler(log_file, mode="a")
+    file_handler.setFormatter(log_formatter)
 
-def calculate_input_amounts(balances, current_price) -> InputAmounts:
-    """Function to determine input amounts"""
-    eth_binance = float(balances["binance"]["ETH"])
-    usdc_binance = float(balances["binance"]["USDC"])
-
-    eth_uniswap = balances["uniswap"]["ETH"]
-    usdc_uniswap = balances["uniswap"]["USDC"]
-
-    # CEX_buy_DEX_sell
-    if usdc_binance > TOKEN0_INPUT * current_price and eth_uniswap > (
-        TOKEN0_INPUT + GAS_RESERVE
-    ):
-        binance_buy = TOKEN0_INPUT
-        uniswap_sell = TOKEN0_INPUT
-    else:
-        binance_buy = None
-        uniswap_sell = None
-
-    # CEX_sell_DEX_buy
-    if eth_binance > TOKEN0_INPUT and usdc_uniswap > (TOKEN0_INPUT * current_price):
-        binance_sell = TOKEN0_INPUT
-        uniswap_buy = TOKEN0_INPUT
-    else:
-        binance_sell = None
-        uniswap_buy = None
-
-    return InputAmounts(
-        binance_buy,
-        binance_sell,
-        uniswap_buy,
-        uniswap_sell,
-    )
+    # Logger setup
+    logger = logging.getLogger(log_file_name)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+    return logger
 
 
 def calculate_pnl(response_binance, receipt_uniswap):

@@ -1,30 +1,27 @@
 import os
 import json
 import requests
-from web3 import Web3
 from src.utils.exceptions import RetrieveAbiError
 from src.config import ETHERSCAN_API_KEY, OUTPUT_DIRECTORY
+from src.config import validate_eth_address
 
 
 def save_abi_to_file(contract_address: str, chain_id, logger) -> None:
     """Saves ABI to file given a contract address and chain-ID"""
-    try:
-        contract_address = validate_contract_address(contract_address)
-        contract_abi = _get_contract_abi(contract_address, chain_id)
-        output_file_path = os.path.join(
-            OUTPUT_DIRECTORY, f"abis/{chain_id}_{contract_address}_abi.json"
-        )
-        with open(output_file_path, "w", encoding="utf-8") as json_file:
-            json.dump(contract_abi, json_file, indent=4)
-        logger.info(f"ABI saved to: {output_file_path}")
-    except Exception as e:
-        raise RetrieveAbiError(f"An error occurred during save_abi_to_file: {e}") from e
+    contract_address = validate_eth_address(contract_address)
+    contract_abi = _get_contract_abi(contract_address, chain_id)
+    output_file_path = os.path.join(
+        OUTPUT_DIRECTORY, f"abis/{chain_id}_{contract_address}_abi.json"
+    )
+    with open(output_file_path, "w", encoding="utf-8") as json_file:
+        json.dump(contract_abi, json_file, indent=4)
+    logger.info(f"ABI saved to: {output_file_path}")
 
 
 def load_abi(contract_address: str, chain_id: str):
     """Helper function to load abi from file given contract_address and chain_id"""
     try:
-        contract_address = validate_contract_address(contract_address)
+        contract_address = validate_eth_address(contract_address)
         file_name = os.path.join(
             OUTPUT_DIRECTORY, f"abis/{chain_id}_{contract_address}_abi.json"
         )
@@ -58,16 +55,9 @@ def _get_contract_abi(contract_address: str, chain_id: str) -> dict:
     return contract_abi
 
 
-def validate_contract_address(address: str) -> str:
-    """Validates and converts an Ethereum address to checksum format"""
-    if not Web3.is_address(address):
-        raise ValueError(f"Invalid Ethereum address provided: {address}")
-    return Web3.to_checksum_address(address)
-
-
 def load_abi_if_not_exist(logger, contract_address, chain_id):
     """Method to download ABI if it doesn't exist and return abi"""
-    abi_filename = validate_contract_address(contract_address)
+    abi_filename = validate_eth_address(contract_address)
     abi_filepath = os.path.join(
         OUTPUT_DIRECTORY, f"abis/{chain_id}_{abi_filename}_abi.json"
     )
@@ -84,5 +74,5 @@ def load_abi_if_not_exist(logger, contract_address, chain_id):
 def load_contract(logger, contract_address, chain_id, web3_connection):
     """Loads contract for a given contract address"""
     abi = load_abi_if_not_exist(logger, contract_address, chain_id)
-    address = validate_contract_address(contract_address)
+    address = validate_eth_address(contract_address)
     return web3_connection.eth.contract(address=address, abi=abi)
