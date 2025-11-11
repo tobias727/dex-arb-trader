@@ -1,5 +1,6 @@
 import time
 import hmac
+from urllib.parse import parse_qsl
 import hashlib
 import aiohttp
 from src.config import (
@@ -43,16 +44,16 @@ class BinanceClient:
             f"symbol=ETHUSDC&side={side.upper()}&type=MARKET"
             f"&quantity={TOKEN0_INPUT}&timestamp={int(time.time()*1000)}"
         )
-        signed_params = self._sign_payload(api_params)
+        signed_params = await self._sign_payload(api_params)
         headers = {"X-MBX-APIKEY": self.binance_api_key}
         async with self.session.post(
-            self.binance_rpc_url_trade,
+            url=self.binance_rpc_url_trade,
             headers=headers,
-            params=signed_params,
+            params=dict(parse_qsl(signed_params)),
             timeout=10,
         ) as r:
             r.raise_for_status()
-            return await r.json(), time.perf_counter()
+            return await r.json()
 
     async def _sign_payload(self, api_params: str) -> dict:
         """Signs the request params with API secret"""

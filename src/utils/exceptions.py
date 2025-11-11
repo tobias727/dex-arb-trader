@@ -4,3 +4,7 @@ class IPChangeError(Exception):
 
 class RetrieveAbiError(Exception):
     """Raised when loading ABI fails"""
+
+
+class ExecutionError(Exception):
+    """Raised when execution failed"""

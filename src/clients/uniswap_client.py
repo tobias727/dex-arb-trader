@@ -67,6 +67,7 @@ class UniswapV4Client:
     def __init__(self, logger):
         self.logger = logger
         self.state = State()
+        self.session = None
         # router contract
         self.universal_router_contract = self.state.web3_rpc.eth.contract(
             address=self.state.universal_router_address, abi=UNIVERSAL_ROUTER_ABI
@@ -80,6 +81,16 @@ class UniswapV4Client:
         self.calldata_get_amounts_out = self.encode_get_amounts_out()
         self.calldata_get_amounts_in = self.encode_get_amounts_in()
 
+    async def init_session(self):
+        """Opens connection"""
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
+
+    async def close(self):
+        """Closes connection"""
+        if self.session:
+            await self.session.close()
+
     @staticmethod
     async def decode_uniswap_quote(response_hex):
         """Returns amount, gas"""
@@ -87,21 +98,16 @@ class UniswapV4Client:
         v2 = int(response_hex[66:130], 16)
         return v1, v2
 
-    async def execute_trade(self, side, ws):
+    async def execute_trade(self, side):
         """Broadcasts pre-signed tx via ws"""
-        exec_req = {
-            "jsonrpc": "2.0",
-            "id": 61,
-            "method": "eth_sendRawTransaction",
-            "params": [
-                (
-                    self.state.signed_raw_tx_buy
-                    if side == "BUY"
-                    else self.state.signed_raw_tx_sell
-                )
-            ],
-        }
-        await ws.send(json.dumps(exec_req))
+        signed_tx = (
+            self.state.signed_raw_tx_buy
+            if side == "BUY"
+            else self.state.signed_raw_tx_sell
+        )
+        tx_hash = self.state.web3_rpc.eth.send_raw_transaction(signed_tx)
+        receipt = self.state.web3_rpc.eth.wait_for_transaction_receipt(tx_hash)
+        return receipt
 
     async def on_new_block(self, ws):
         """Sends RFQ via ws"""
@@ -174,9 +180,9 @@ class UniswapV4Client:
 
     def encode_and_sign_exec_tx(self, zero_for_one: bool):
         """zero_for_one: False for BUY, True for SELL"""
-        amount_in = int(TOKEN0_INPUT * 10**TOKEN0_DECIMALS)
-        min_amount_out = 0
-        exact_input_single_params = encode(
+        amount_token0 = int(TOKEN0_INPUT * 10**TOKEN0_DECIMALS)
+        cap_token1 = 0 if zero_for_one else 2**128 - 1
+        swap_exact_params = encode(
             [
                 "address",
                 "address",
@@ -195,12 +201,12 @@ class UniswapV4Client:
                 10,  # tickSpacing (int24)
                 "0x0000000000000000000000000000000000000000",  # poolHooks
                 zero_for_one,  # zeroForOne
-                amount_in,  # amountIn
-                min_amount_out,  # minAmountOut
+                amount_token0,  # amountIn / amountOut
+                cap_token1,  # amountOutMinimum / amountInMaximum
                 b"",  # hookData
             ],
         )
-        params_1 = encode(
+        settle_all_params = encode(
             ["address", "uint128"],
             [
                 (
@@ -208,10 +214,10 @@ class UniswapV4Client:
                     if zero_for_one
                     else self.state.usdc_address
                 ),
-                amount_in,
+                2**128 - 1,
             ],
         )
-        params_2 = encode(
+        take_all_params = encode(
             ["address", "uint128"],
             [
                 (
@@ -219,14 +225,19 @@ class UniswapV4Client:
                     if zero_for_one
                     else self.state.eth_native_address
                 ),
-                min_amount_out,
+                0,
             ],
         )
-        actions = encode_packed(["uint8", "uint8", "uint8"], [0x06, 0x0C, 0x0F])
+        # 0x06=SWAP_EXACT_IN_SINGLE, 0x08=SWAP_EXACT_OUT_SINGLE
+        # 0x0C=SETTLE_ALL
+        # 0x0F=TAKE_ALL
+        actions = encode_packed(
+            ["uint8", "uint8", "uint8"], [0x06 if zero_for_one else 0x08, 0x0C, 0x0F]
+        )
         inputs = [
             encode(
                 ["bytes", "bytes[]"],
-                [actions, [exact_input_single_params, params_1, params_2]],
+                [actions, [swap_exact_params, settle_all_params, take_all_params]],
             )
         ]
         commands = encode_packed(["uint8"], [0x10])
@@ -237,7 +248,7 @@ class UniswapV4Client:
             "from": self.state.wallet_address,
             "to": self.state.universal_router_address,
             "data": calldata,
-            "value": amount_in if zero_for_one else 0,
+            "value": amount_token0 if zero_for_one else 0,
             "nonce": self.state.web3_rpc.eth.get_transaction_count(
                 self.state.wallet_address, "pending"
             ),
@@ -250,46 +261,44 @@ class UniswapV4Client:
         signed = self.state.web3_rpc.eth.account.sign_transaction(
             tx, self.state.private_key
         )
-        return signed.raw_transaction.hex()
+        return signed.raw_transaction
 
     async def get_balances(self):
         """Returns balances for USDC and ETH"""
-        async with aiohttp.ClientSession() as session:
-            # eth
-            payload_eth = {
-                "jsonrpc": "2.0",
-                "method": "eth_getBalance",
-                "params": [self.state.wallet_address, "pending"],
-                "id": 101,
-            }
-            # usdc (erc20)
-            payload_usdc = {
-                "jsonrpc": "2.0",
-                "method": "eth_call",
-                "params": [
-                    {
-                        "to": self.state.usdc_address,
-                        # method-id + address (without "0x")
-                        "data": "0x70a08231000000000000000000000000"
-                        + self.state.wallet_address[2:],
-                    },
-                    "pending",
-                ],
-                "id": 102,
-            }
-            # Parallel senden
-            tasks = [
-                session.post(self.state.url_rpc, json=payload_eth),
-                session.post(self.state.url_rpc, json=payload_usdc),
-            ]
-            resp_eth, resp_usdc = await asyncio.gather(*tasks)
-            result_eth = await resp_eth.json()
-            result_usdc = await resp_usdc.json()
+        # eth
+        payload_eth = {
+            "jsonrpc": "2.0",
+            "method": "eth_getBalance",
+            "params": [self.state.wallet_address, "pending"],
+            "id": 101,
+        }
+        # usdc (erc20)
+        payload_usdc = {
+            "jsonrpc": "2.0",
+            "method": "eth_call",
+            "params": [
+                {
+                    "to": self.state.usdc_address,
+                    # method-id + address
+                    "data": "0x70a08231000000000000000000000000"
+                    + self.state.wallet_address[2:],
+                },
+                "pending",
+            ],
+            "id": 102,
+        }
+        tasks = [
+            self.session.post(self.state.url_rpc, json=payload_eth),
+            self.session.post(self.state.url_rpc, json=payload_usdc),
+        ]
+        resp_eth, resp_usdc = await asyncio.gather(*tasks)
+        result_eth = await resp_eth.json()
+        result_usdc = await resp_usdc.json()
 
-            balance_eth = int(result_eth["result"], 16) / 1e18  # ETH → float
-            balance_usdc = int(result_usdc["result"], 16) / 1e6  # USDC → float
+        balance_eth = int(result_eth["result"], 16) / 1e18  # ETH → float
+        balance_usdc = int(result_usdc["result"], 16) / 1e6  # USDC → float
 
-            return balance_eth, balance_usdc
+        return balance_eth, balance_usdc
 
     async def get_trade_result(self, tx_hash):
         """Returns tx_receipt given tx_hash"""

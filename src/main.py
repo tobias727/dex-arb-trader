@@ -12,6 +12,7 @@ from src.utils.utils import (
     setup_logger,
 )
 from src.utils.telegram_bot import TelegramBot
+from src.utils.exceptions import ExecutionError
 from src.config import (
     TOKEN0_INPUT,
     MIN_EDGE,
@@ -35,14 +36,16 @@ class State:
             "uniswap": {"ETH": None, "USDC": None},
         }
         self.tradeable_sides = {"CEX_buy_DEX_sell": False, "CEX_sell_DEX_buy": False}
-        self.last_trade_result = {"response_binance": {}, "receipt_uniswap": {}}
+        self.last_trade_result = {"response_binance": None, "receipt_uniswap": None}
         self.ws = None
         self.balance_update_task = None
         self.exec_sign_task = None
         self.new_block_ts = None
-        self.u_executed_latency = None
-        self.b_perf_counter = None
+        self.opportunity_detected_ts = None
         self.block_processing_paused = False
+        self.current_block_number = None
+        self.bid_latency = None
+        self.ask_latency = None
 
 
 class DexArbTrader:
@@ -58,6 +61,7 @@ class DexArbTrader:
     async def run(self):
         """Entrypoint"""
         await self.binance_client.init_session()
+        await self.uniswap_client.init_session()
         self.request_balance_update()
         self.request_exec_signing()
         try:
@@ -66,8 +70,8 @@ class DexArbTrader:
                 _task2 = tg.create_task(self.listen_binance())
                 _task3 = tg.create_task(monitor_ip_change(self.logger))
         finally:
-            # manual session for faster requests
             await self.binance_client.close()
+            await self.uniswap_client.close()
 
     async def listen_uniswap(self):
         """Uniswap listener with Flashblocks as pending enabled"""
@@ -81,7 +85,6 @@ class DexArbTrader:
                     "method": "eth_subscribe",
                     "params": ["newHeads"],
                 }
-                self.logger.info("------------------")
                 await self.state.ws.send(json.dumps(sub_req))
                 while True:
                     msg = await self.state.ws.recv()
@@ -100,40 +103,29 @@ class DexArbTrader:
                     # new block event
                     if msg_obj.get("method") == "eth_subscription":
                         self.state.quotes.clear()
-                        self.state.new_block_ts = time.perf_counter()
-                        print("DEBUG: NEW Block")
+                        self.state.new_block_ts = int(
+                            msg_obj["params"]["result"]["timestamp"], 16
+                        )
+                        self.state.current_block_number = int(
+                            msg_obj["params"]["result"]["number"], 16
+                        )
                         await self.uniswap_client.on_new_block(self.state.ws)
                     # Bid
                     elif msg_obj.get("id") == 42:
-                        bid_latency = time.perf_counter() - self.state.new_block_ts
+                        self.state.bid_latency = time.time() - self.state.new_block_ts
                         amount_out, gas = (
                             await self.uniswap_client.decode_uniswap_quote(
                                 msg_obj.get("result")
                             )
                         )
                         self.state.quotes["bid"] = (amount_out, gas)
-                        print("DEBUG: %s", amount_out)
                     # Ask
                     elif msg_obj.get("id") == 43:
-                        ask_latency = time.perf_counter() - self.state.new_block_ts
+                        self.state.ask_latency = time.time() - self.state.new_block_ts
                         amount_in, gas = await self.uniswap_client.decode_uniswap_quote(
                             msg_obj.get("result")
                         )
                         self.state.quotes["ask"] = (amount_in, gas)
-                        print("DEBUG: %s", amount_in)
-                    # Executed
-                    elif msg_obj.get("id") == 61:
-                        self.state.u_executed_latency = (
-                            time.perf_counter() - self.state.new_block_ts
-                        )
-                        self.request_exec_signing()
-                        self.state.last_trade_result["receipt_uniswap"] = (
-                            await self.uniswap_client.get_trade_result(
-                                msg_obj.get("result")
-                            )
-                        )
-                        if self.state.last_trade_result["response_binance"] is not None:
-                            await self.process_trade_result()
                     else:
                         self.logger.warning("Unknown msg: %s", msg)
 
@@ -143,17 +135,6 @@ class DexArbTrader:
                         and self.state.orderbook
                     ):
                         await self.detect()
-                        self.logger.info(
-                            "Quotes: b_bid=%s, b_ask=%s, u_bid=%s, u_ask=%s | new_block_ts=%.4fs, u_bid_latency=%.4fs, u_ask_latency=%.4fs",
-                            self.state.orderbook["b"],
-                            self.state.orderbook["a"],
-                            self.state.quotes["bid"][0],
-                            self.state.quotes["ask"][0],
-                            self.state.new_block_ts,
-                            # pylint: disable=used-before-assignment.
-                            bid_latency,
-                            ask_latency,
-                        )
                         self.state.quotes.clear()
         except Exception as e:
             await self.telegram_bot.notify_crashed(e)
@@ -175,6 +156,7 @@ class DexArbTrader:
 
     async def detect(self):
         """Edge detector, calls execute"""
+        self.state.opportunity_detected_ts = time.time()
         adj_b_bid = int(
             float(self.state.orderbook["b"])
             * 10**TOKEN1_DECIMALS
@@ -190,7 +172,6 @@ class DexArbTrader:
         adj_u_bid = self.state.quotes["bid"][0]  # ignore gas for now
         adj_u_ask = self.state.quotes["ask"][0]  # ignore gas for now
         edge = adj_u_bid - adj_b_ask
-        print("DEBUG2: ", edge)
         # CEX_buy_DEX_sell
         if edge > MIN_EDGE and self.state.tradeable_sides["CEX_buy_DEX_sell"]:
             await self.execute("CEX_buy_DEX_sell")
@@ -202,27 +183,38 @@ class DexArbTrader:
             await self.execute("CEX_sell_DEX_buy")
         elif edge > 0:
             self.logger.warning("Detected: CEX_sell_DEX_buy, %s", f"{edge:_}")
+        self.logger.info(
+            "#%s\n"
+            "                               Binance b: %10s | a: %10s\n"
+            "                               Uniswap b: %10s | a: %10s [b: %.1fms, a: %.1fms]",
+            self.state.current_block_number,
+            f"{adj_b_bid:_}",
+            f"{adj_b_ask:_}",
+            f"{adj_u_bid:_}",
+            f"{adj_u_ask:_}",
+            self.state.bid_latency * 1000,
+            self.state.ask_latency * 1000,
+        )
 
     async def execute(self, side):
         """Execute trade"""
         task1 = None
+        task2 = None
         if side == "CEX_buy_DEX_sell":
             async with asyncio.TaskGroup() as tg:
                 task1 = tg.create_task(self.binance_client.execute_trade("BUY"))
-                _task2 = tg.create_task(
-                    self.uniswap_client.execute_trade("SELL", self.state.ws)
-                )
+                task2 = tg.create_task(self.uniswap_client.execute_trade("SELL"))
         elif side == "CEX_sell_DEX_buy":
             async with asyncio.TaskGroup() as tg:
                 task1 = tg.create_task(self.binance_client.execute_trade("SELL"))
-                _task2 = tg.create_task(
-                    self.uniswap_client.execute_trade("BUY", self.state.ws)
-                )
-        self.state.last_trade_result["response_binance"], self.state.b_perf_counter = (
-            task1.result()
-        )
-        if self.state.last_trade_result["receipt_uniswap"] is not None:
-            await self.process_trade_result()
+                task2 = tg.create_task(self.uniswap_client.execute_trade("BUY"))
+        self.state.last_trade_result["response_binance"] = task1.result()
+        self.state.last_trade_result["receipt_uniswap"] = task2.result()
+        # pylint: disable=no-member
+        if self.state.last_trade_result["receipt_uniswap"].status != 1:
+            raise ExecutionError
+        await self.process_trade_result()
+        self.request_exec_signing()
         self.request_balance_update()
 
     async def process_trade_result(self):
@@ -231,11 +223,16 @@ class DexArbTrader:
             self.state.last_trade_result["response_binance"],
             self.state.last_trade_result["receipt_uniswap"],
         )
-        b_executed_latency = self.state.b_perf_counter - self.state.new_block_ts
+        u_executed_latency = int(
+            self.state.last_trade_result["receipt_uniswap"]["blockNumber"]
+        ) - int(self.state.current_block_number)
+        b_executed_latency = self.state.last_trade_result["response_binance"][
+            "transactTime"
+        ] - (self.state.opportunity_detected_ts * 1000)
         self.logger.info(
-            "Executed: pnl=%s, u_executed_latency=%s, b_executed_latency=%s",
+            "Executed: pnl=%s, u_executed_latency=%s, b_executed_latency=%.1fms",
             pnl,
-            self.state.u_executed_latency,
+            u_executed_latency,
             b_executed_latency,
         )
         await self.telegram_bot.notify_executed(pnl)
