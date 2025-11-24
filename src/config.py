@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from web3 import Web3
 
 
-def load_config(filepath="values.yaml"):
+def load_config(filepath):
     """Load deployment config"""
     with open(filepath, "r", encoding="utf-8") as file:
         return yaml.safe_load(file)
@@ -18,7 +18,8 @@ def validate_eth_address(address: str) -> str:
 
 
 load_dotenv()
-config = load_config()
+is_local = bool(os.getenv("LOCAL"))
+config = load_config("values_local.yaml" if is_local else "values_ec2.yaml")
 
 OUTPUT_DIRECTORY = os.path.join(os.getcwd(), "out")
 
@@ -41,6 +42,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 UNICHAIN_CHAINID = config["unichain"]["chain_id"]
 UNICHAIN_RPC_URL = config["unichain"]["rpc_url"]
 UNICHAIN_WS_URL = config["unichain"]["ws_url"]
+UNICHAIN_FLASHBLOCKS_WS_URL = config["unichain"]["flashblocks_ws_url"]
 ## Contract addresses
 UNICHAIN_UNIVERSAL_ROUTER_ADDRESS = validate_eth_address(
     config["unichain"]["uniswap"]["contract_deployments"]["universal_router"]
@@ -61,6 +63,9 @@ UNICHAIN_ETH_NATIVE = validate_eth_address(
 UNICHAIN_SEPOLIA_CHAINID = config["unichain-sepolia-testnet"]["chain_id"]
 UNICHAIN_SEPOLIA_RPC_URL = config["unichain-sepolia-testnet"]["rpc_url"]
 UNICHAIN_SEPOLIA_WS_URL = config["unichain-sepolia-testnet"]["ws_url"]
+UNICHAIN_SEPOLIA_FLASHBLOCKS_WS_URL = config["unichain-sepolia-testnet"][
+    "flashblocks_ws_url"
+]
 ## Contract addresses
 UNICHAIN_SEPOLIA_UNIVERSAL_ROUTER_ADDRESS = validate_eth_address(
     config["unichain-sepolia-testnet"]["uniswap"]["contract_deployments"][

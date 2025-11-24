@@ -17,8 +17,9 @@ binance:
 
 unichain:
   chain_id: 130
-  rpc_url: https://unichain-mainnet.g.alchemy.com/v2/
-  ws_url: wss://unichain-mainnet.g.alchemy.com/v2/
+  rpc_url: http://execution-client:8545
+  ws_url: ws://execution-client:8546
+  flashblocks_ws_url: wss://mainnet-flashblocks.unichain.org/ws
   uniswap:
     # https://docs.uniswap.org/contracts/v4/deployments
     contract_deployments:
@@ -32,8 +33,9 @@ unichain:
 
 unichain-sepolia-testnet:
   chain_id: 1301
-  rpc_url: https://sepolia.unichain.org/
-  ws_url: wss://unichain-sepolia.g.alchemy.com/v2/
+  rpc_url: http://execution-client:8545
+  ws_url: ws://execution-client:8546
+  flashblocks_ws_url: wss://sepolia-flashblocks.unichain.org/ws
   uniswap:
     contract_deployments:
       universal_router: "0xf70536B3bcC1bD1a972dc186A2cf84cC6da6Be5D"

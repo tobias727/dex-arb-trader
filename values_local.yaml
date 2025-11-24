@@ -1,0 +1,46 @@
+execution:
+  testnet: True
+  token0_input: 0.0020 # ETH
+  token0_decimals: 18
+  token1_decimals: 6
+  binance_fee: 0.00095 # https://www.binance.com/en/fee/trading
+  # binance_min_qty: 0.0001
+  # binance_step_size: 0.0001
+  # binance_min_notional: 5.0
+  min_edge: 1 # 1 cent = 10_000
+  gas_reserve: 0.000001 # ensuring enough gas left for swaps
+
+binance:
+  base_url_rpc: https://api.binance.com
+  base_url_rpc_testnet: https://testnet.binance.vision
+  base_url_ws: wss://stream.binance.com:9443
+
+unichain:
+  chain_id: 130
+  rpc_url: https://unichain-mainnet.g.alchemy.com/v2/
+  ws_url: wss://unichain-mainnet.g.alchemy.com/v2/
+  flashblocks_ws_url: wss://mainnet-flashblocks.unichain.org/ws
+  uniswap:
+    # https://docs.uniswap.org/contracts/v4/deployments
+    contract_deployments:
+      universal_router: "0xef740bf23acae26f6492b10de645d6b98dc8eaf3"
+      permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+      v4_quoter: "0x333e3c607b141b18ff6de9f258db6e77fe7491e0"
+    # https://docs.unichain.org/docs/technical-information/contract-addresses
+    tokens:
+      usdc: "0x078D782b760474a361dDA0AF3839290b0EF57AD6"
+      eth_native: "0x0000000000000000000000000000000000000000"
+
+unichain-sepolia-testnet:
+  chain_id: 1301
+  rpc_url: https://sepolia.unichain.org/
+  ws_url: wss://unichain-sepolia.g.alchemy.com/v2/
+  flashblocks_ws_url: wss://sepolia-flashblocks.unichain.org/ws
+  uniswap:
+    contract_deployments:
+      universal_router: "0xf70536B3bcC1bD1a972dc186A2cf84cC6da6Be5D"
+      permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+      v4_quoter: "0x56dcd40a3f2d466f48e7f48bdbe5cc9b92ae4472"
+    tokens:
+      usdc: "0x31d0220469e10c4E71834a79b1f276d740d3768F"
+      eth_native: "0x0000000000000000000000000000000000000000"

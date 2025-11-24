@@ -2,6 +2,8 @@ import json
 import sys
 import asyncio
 import time
+from collections import deque
+import brotli
 import websockets
 from src.clients.binance_client import BinanceClient
 from src.clients.uniswap_client import UniswapV4Client
@@ -37,15 +39,17 @@ class State:
         }
         self.tradeable_sides = {"CEX_buy_DEX_sell": False, "CEX_sell_DEX_buy": False}
         self.last_trade_result = {"response_binance": None, "receipt_uniswap": None}
-        self.ws = None
         self.balance_update_task = None
         self.exec_sign_task = None
         self.new_block_ts = None
         self.opportunity_detected_ts = None
         self.block_processing_paused = False
-        self.current_block_number = None
+        self.current_block_number_head = None
         self.bid_latency = None
         self.ask_latency = None
+        self.bid_latency_server = None
+        self.ask_latency_server = None
+        self.last_blocks = deque(maxlen=10)
 
 
 class DexArbTrader:
@@ -67,27 +71,41 @@ class DexArbTrader:
         try:
             async with asyncio.TaskGroup() as tg:
                 _task1 = tg.create_task(self.listen_uniswap())
-                _task2 = tg.create_task(self.listen_binance())
-                _task3 = tg.create_task(monitor_ip_change(self.logger))
+                _task2 = tg.create_task(self.listen_flashblocks())
+                _task3 = tg.create_task(self.listen_binance())
+                _task4 = tg.create_task(monitor_ip_change(self.logger))
         finally:
             await self.binance_client.close()
             await self.uniswap_client.close()
 
+    async def listen_flashblocks(self):
+        """ "Flashblock listener to analyze latency"""
+        async with websockets.connect(self.uniswap_client.state.flashblock_ws) as ws:
+            async for message in ws:
+                payload = json.loads(brotli.decompress(message))
+                flashblock_position = payload.get("index") + 1
+                tx_hashes = payload.get("metadata", {}).get("receipts", {}).keys()
+                block_number = payload.get("metadata", {}).get("block_number")
+                self.state.last_blocks.append(
+                    {
+                        "block_number": block_number,
+                        "flashblock_position": flashblock_position,
+                        "transactions": tx_hashes,
+                    }
+                )
+
     async def listen_uniswap(self):
         """Uniswap listener with Flashblocks as pending enabled"""
         try:
-            async with websockets.connect(
-                self.uniswap_client.state.url_ws
-            ) as self.state.ws:
+            async with websockets.connect(self.uniswap_client.state.url_ws) as ws:
                 sub_req = {
                     "jsonrpc": "2.0",
-                    "id": 1,
                     "method": "eth_subscribe",
                     "params": ["newHeads"],
                 }
-                await self.state.ws.send(json.dumps(sub_req))
+                await ws.send(json.dumps(sub_req))
                 while True:
-                    msg = await self.state.ws.recv()
+                    msg = await ws.recv()
                     msg_obj = json.loads(msg)
                     if self.state.block_processing_paused:
                         if (
@@ -103,13 +121,11 @@ class DexArbTrader:
                     # new block event
                     if msg_obj.get("method") == "eth_subscription":
                         self.state.quotes.clear()
-                        self.state.new_block_ts = int(
-                            msg_obj["params"]["result"]["timestamp"], 16
-                        )
-                        self.state.current_block_number = int(
+                        self.state.new_block_ts = time.time()
+                        self.state.current_block_number_head = int(
                             msg_obj["params"]["result"]["number"], 16
                         )
-                        await self.uniswap_client.on_new_block(self.state.ws)
+                        await self.uniswap_client.on_new_block(ws)
                     # Bid
                     elif msg_obj.get("id") == 42:
                         self.state.bid_latency = time.time() - self.state.new_block_ts
@@ -126,6 +142,11 @@ class DexArbTrader:
                             msg_obj.get("result")
                         )
                         self.state.quotes["ask"] = (amount_in, gas)
+                    elif msg_obj.get("id") is None and "result" in msg_obj:
+                        self.logger.debug(
+                            "Started eth_subscription with id '%s'",
+                            msg_obj.get("result"),
+                        )
                     else:
                         self.logger.warning("Unknown msg: %s", msg)
 
@@ -187,7 +208,7 @@ class DexArbTrader:
             "#%s\n"
             "                               Binance b: %10s | a: %10s\n"
             "                               Uniswap b: %10s | a: %10s [b: %.1fms, a: %.1fms]",
-            self.state.current_block_number,
+            self.state.current_block_number_head,
             f"{adj_b_bid:_}",
             f"{adj_b_ask:_}",
             f"{adj_u_bid:_}",
@@ -223,17 +244,27 @@ class DexArbTrader:
             self.state.last_trade_result["response_binance"],
             self.state.last_trade_result["receipt_uniswap"],
         )
-        u_executed_latency = int(
-            self.state.last_trade_result["receipt_uniswap"]["blockNumber"]
-        ) - int(self.state.current_block_number)
+        block, flashblock = await self.find_trade_in_flashblocks()
+        if block:
+            u_executed_latency = int(block) - (
+                int(self.state.current_block_number_head) + 1
+            )
+        else:
+            u_executed_latency, flashblock = "None", "None"
         b_executed_latency = self.state.last_trade_result["response_binance"][
             "transactTime"
         ] - (self.state.opportunity_detected_ts * 1000)
+        print(self.state.last_trade_result["response_binance"])
         self.logger.info(
-            "Executed: pnl=%s, u_executed_latency=%s, b_executed_latency=%.1fms",
+            "Executed: pnl=%s\n"
+            "                               Uniswap:  %sB, %sf, 0x%s\n"
+            "                               Binance:  %.1fms, %s",
             pnl,
             u_executed_latency,
+            flashblock,
+            self.state.last_trade_result["receipt_uniswap"]["transactionHash"].hex(),
             b_executed_latency,
+            self.state.last_trade_result["response_binance"]["fills"],
         )
         await self.telegram_bot.notify_executed(pnl)
         append_trade_to_csv(
@@ -248,6 +279,19 @@ class DexArbTrader:
             },
         )
         self.state.last_trade_result = {"response_binance": {}, "receipt_uniswap": {}}
+
+    async def find_trade_in_flashblocks(self):
+        """Searches the flashblock position in the executed block"""
+        tx_hash = (
+            "0x"
+            + self.state.last_trade_result["receipt_uniswap"]["transactionHash"].hex()
+        )
+        await asyncio.sleep(0.2)
+        for entry in self.state.last_blocks:
+            for tx in entry["transactions"]:
+                if tx == tx_hash:
+                    return entry["block_number"], entry["flashblock_position"]
+        return None, None
 
     def request_balance_update(self):
         """Starts update_balances and blocks processing until refreshed"""
@@ -280,10 +324,10 @@ class DexArbTrader:
         self.state.balances["uniswap"] = {"ETH": u_eth, "USDC": u_usdc}
         # TODO: 4_500 price
         self.state.tradeable_sides["CEX_buy_DEX_sell"] = (
-            b_usdc > TOKEN0_INPUT * 4_500 and u_eth > (TOKEN0_INPUT + GAS_RESERVE)
+            b_usdc > TOKEN0_INPUT * 3_000 and u_eth > (TOKEN0_INPUT + GAS_RESERVE)
         )
         self.state.tradeable_sides["CEX_sell_DEX_buy"] = (
-            b_eth > TOKEN0_INPUT and u_usdc > TOKEN0_INPUT * 4_500
+            b_eth > TOKEN0_INPUT and u_usdc > TOKEN0_INPUT * 3_000
         )
         self.logger.info(
             "Balances: b_eth=%s, b_usdc=%s, u_eth=%s, u_usdc=%s",

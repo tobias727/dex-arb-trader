@@ -63,7 +63,8 @@ Planned next steps are:
 - On-chain simulation
 
 
-## License
+## Deployment
 
-This project is licensed under the MIT License.
-See the [LICENSE](LICENSE) file for more details.
+```
+docker build -t tobias875/dex-arb-trader:latest . && docker push tobias875/dex-arb-trader:latest
+```

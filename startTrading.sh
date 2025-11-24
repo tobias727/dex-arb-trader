@@ -27,6 +27,7 @@ else
     exit 1
 fi
 
+export LOCAL=1
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 
 echo -e "⚡ Starting Execution..."

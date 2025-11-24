@@ -6,6 +6,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src ./src
-COPY values.yaml .
+COPY values_ec2.yaml .
 
 CMD ["python", "-m", "src.main"]

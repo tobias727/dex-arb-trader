@@ -28,6 +28,8 @@ from src.config import (
     UNICHAIN_WS_URL,
     UNIVERSAL_ROUTER_ABI,
     V4_QUOTER_ABI,
+    UNICHAIN_SEPOLIA_FLASHBLOCKS_WS_URL,
+    UNICHAIN_FLASHBLOCKS_WS_URL,
 )
 
 
@@ -39,8 +41,13 @@ class State:
         base_ws_url = UNICHAIN_SEPOLIA_WS_URL if TESTNET else UNICHAIN_WS_URL
         base_rpc_url = UNICHAIN_SEPOLIA_RPC_URL if TESTNET else UNICHAIN_RPC_URL
         api_key = ALCHEMY_API_KEY
-        self.url_ws = f"{base_ws_url}{api_key}"
-        self.url_rpc = f"{base_rpc_url}{api_key}"
+        self.url_ws = f"{base_ws_url}{api_key}" if api_key else base_ws_url
+        self.url_rpc = f"{base_rpc_url}{api_key}" if api_key else base_rpc_url
+        self.flashblock_ws = (
+            UNICHAIN_SEPOLIA_FLASHBLOCKS_WS_URL
+            if TESTNET
+            else UNICHAIN_FLASHBLOCKS_WS_URL
+        )
         self.web3_rpc = Web3(Web3.HTTPProvider(self.url_rpc))
         self.wallet_address = WALLET_ADDRESS_TESTNET if TESTNET else WALLET_ADDRESS
         self.private_key = PRIVATE_KEY_TESTNET if TESTNET else PRIVATE_KEY
