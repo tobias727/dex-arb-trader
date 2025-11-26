@@ -8,4 +8,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src ./src
 COPY values_ec2.yaml .
 
+#ENV LOCAL=1
 CMD ["python", "-m", "src.main"]

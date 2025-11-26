@@ -1,5 +1,5 @@
 execution:
-  testnet: True
+  testnet: False
   token0_input: 0.0020 # ETH
   token0_decimals: 18
   token1_decimals: 6
@@ -7,13 +7,13 @@ execution:
   # binance_min_qty: 0.0001
   # binance_step_size: 0.0001
   # binance_min_notional: 5.0
-  min_edge: 10_000 # 1 cent = 10_000
+  min_edge: 100 # 1 cent = 10_000
   gas_reserve: 0.000001 # ensuring enough gas left for swaps
 
 binance:
-  base_url_rpc: https://api.binance.com
+  base_url_rpc: https://13.212.92.126/api
   base_url_rpc_testnet: https://testnet.binance.vision
-  base_url_ws: wss://stream.binance.com:9443
+  base_url_ws: wss://13.212.92.126:8080
 
 unichain:
   chain_id: 130

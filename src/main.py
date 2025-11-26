@@ -79,7 +79,7 @@ class DexArbTrader:
             await self.uniswap_client.close()
 
     async def listen_flashblocks(self):
-        """ "Flashblock listener to analyze latency"""
+        """Flashblock listener to analyze latency"""
         async with websockets.connect(self.uniswap_client.state.flashblock_ws) as ws:
             async for message in ws:
                 payload = json.loads(brotli.decompress(message))
@@ -97,7 +97,9 @@ class DexArbTrader:
     async def listen_uniswap(self):
         """Uniswap listener with Flashblocks as pending enabled"""
         try:
-            async with websockets.connect(self.uniswap_client.state.url_ws) as ws:
+            async with websockets.connect(
+                self.uniswap_client.state.url_ws, ping_interval=20, ping_timeout=20
+            ) as ws:
                 sub_req = {
                     "jsonrpc": "2.0",
                     "method": "eth_subscribe",
@@ -254,7 +256,6 @@ class DexArbTrader:
         b_executed_latency = self.state.last_trade_result["response_binance"][
             "transactTime"
         ] - (self.state.opportunity_detected_ts * 1000)
-        print(self.state.last_trade_result["response_binance"])
         self.logger.info(
             "Executed: pnl=%s\n"
             "                               Uniswap:  %sB, %sf, 0x%s\n"
