@@ -28,7 +28,9 @@ class BinanceClient:
         )
         self.logger = logger
         self.session = None
-        self.ssl_context = ssl._create_unverified_context() # self-signed certificate on ec2
+        self.ssl_context = (
+            ssl._create_unverified_context()
+        )  # self-signed certificate on ec2
 
     async def init_session(self):
         """Opens connection"""
