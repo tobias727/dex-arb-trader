@@ -1,4 +1,5 @@
 import time
+import ssl
 import hmac
 from urllib.parse import parse_qsl
 import hashlib
@@ -27,6 +28,7 @@ class BinanceClient:
         )
         self.logger = logger
         self.session = None
+        self.ssl_context = ssl._create_unverified_context() # self-signed certificate on ec2
 
     async def init_session(self):
         """Opens connection"""
@@ -48,6 +50,7 @@ class BinanceClient:
         headers = {"X-MBX-APIKEY": self.binance_api_key}
         async with self.session.post(
             url=self.binance_rpc_url_trade,
+            ssl=self.ssl_context,
             headers=headers,
             params=dict(parse_qsl(signed_params)),
             timeout=10,
@@ -71,6 +74,7 @@ class BinanceClient:
         headers = {"X-MBX-APIKEY": self.binance_api_key}
         async with self.session.get(
             self.binance_rpc_url_account,
+            ssl=self.ssl_context,
             headers=headers,
             params=signed_params,
             timeout=10,

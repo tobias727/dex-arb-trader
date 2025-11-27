@@ -167,7 +167,7 @@ class DexArbTrader:
     async def listen_binance(self):
         """Binance listener, top of book only"""
         binance_uri = f"{BINANCE_BASE_URL_WS}/ws/ethusdc@bookTicker"
-        async with websockets.connect(binance_uri) as ws:
+        async with websockets.connect(binance_uri, ssl=self.binance_client.ssl_context) as ws:
             while True:
                 msg = await ws.recv()
                 await self.update_order_book(msg)
