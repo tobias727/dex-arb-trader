@@ -1,5 +1,6 @@
 execution:
-  testnet: True
+  version: "1.3.0"
+  testnet: False
   token0_input: 0.0020 # ETH
   token0_decimals: 18
   token1_decimals: 6
@@ -17,6 +18,7 @@ binance:
 
 unichain:
   chain_id: 130
+  sequencer_rpc_url: https://mainnet-sequencer.unichain.org
   rpc_url: https://unichain-mainnet.g.alchemy.com/v2/
   ws_url: wss://unichain-mainnet.g.alchemy.com/v2/
   flashblocks_ws_url: wss://mainnet-flashblocks.unichain.org/ws
@@ -33,6 +35,7 @@ unichain:
 
 unichain-sepolia-testnet:
   chain_id: 1301
+  sequencer_rpc_url: https://sepolia-sequencer.unichain.org
   rpc_url: https://sepolia.unichain.org/
   ws_url: wss://unichain-sepolia.g.alchemy.com/v2/
   flashblocks_ws_url: wss://sepolia-flashblocks.unichain.org/ws

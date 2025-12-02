@@ -30,6 +30,8 @@ from src.config import (
     V4_QUOTER_ABI,
     UNICHAIN_SEPOLIA_FLASHBLOCKS_WS_URL,
     UNICHAIN_FLASHBLOCKS_WS_URL,
+    UNICHAIN_SEQUENCER_RPC_URL,
+    UNICHAIN_SEPOLIA_SEQUENCER_RPC_URL,
 )
 
 
@@ -43,11 +45,17 @@ class State:
         api_key = ALCHEMY_API_KEY
         self.url_ws = f"{base_ws_url}{api_key}" if api_key else base_ws_url
         self.url_rpc = f"{base_rpc_url}{api_key}" if api_key else base_rpc_url
+        self.sequencer_rpc_url = (
+            UNICHAIN_SEPOLIA_SEQUENCER_RPC_URL
+            if TESTNET
+            else UNICHAIN_SEQUENCER_RPC_URL
+        )
         self.flashblock_ws = (
             UNICHAIN_SEPOLIA_FLASHBLOCKS_WS_URL
             if TESTNET
             else UNICHAIN_FLASHBLOCKS_WS_URL
         )
+        self.web3_sequencer_rpc = Web3(Web3.HTTPProvider(self.sequencer_rpc_url))
         self.web3_rpc = Web3(Web3.HTTPProvider(self.url_rpc))
         self.wallet_address = WALLET_ADDRESS_TESTNET if TESTNET else WALLET_ADDRESS
         self.private_key = PRIVATE_KEY_TESTNET if TESTNET else PRIVATE_KEY
@@ -64,8 +72,6 @@ class State:
         )
         self.eth_native_address = UNICHAIN_ETH_NATIVE
         self.usdc_address = UNICHAIN_SEPOLIA_USDC if TESTNET else UNICHAIN_USDC
-        self.signed_raw_tx_buy = None
-        self.signed_raw_tx_sell = None
 
 
 class UniswapV4Client:
@@ -105,16 +111,62 @@ class UniswapV4Client:
         v2 = int(response_hex[66:130], 16)
         return v1, v2
 
-    async def execute_trade(self, side):
-        """Broadcasts pre-signed tx via ws"""
-        signed_tx = (
-            self.state.signed_raw_tx_buy
-            if side == "BUY"
-            else self.state.signed_raw_tx_sell
-        )
-        tx_hash = self.state.web3_rpc.eth.send_raw_transaction(signed_tx)
-        receipt = self.state.web3_rpc.eth.wait_for_transaction_receipt(tx_hash)
+    async def execute_trade(self, zero_for_one, cap_token1, current_block_number):
+        """Sends send_bundle to sequencer with slippage protection"""
+        bundle_params = {
+            "txs": [
+                "0x" + self.encode_and_sign_exec_tx(zero_for_one, cap_token1).hex()
+            ],
+            "minBlockNumber": hex(current_block_number + 1),
+            "maxBlockNumber": hex(current_block_number + 3),
+        }
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "eth_sendBundle",
+            "params": [bundle_params],
+        }
+        print(json.dumps(payload, indent=2))
+        async with self.session.post(
+            self.state.sequencer_rpc_url, json=payload, timeout=5
+        ) as r:
+            r.raise_for_status()
+            data = await r.json()
+        if "error" in data:
+            code = data["error"].get("code")
+            message = data["error"].get("message")
+            if code == -32602:
+                raise ValueError(f"Bundle rejected: {message}")
+        bundle_hash = data["result"]["bundleHash"]
+        receipt = await self.wait_for_bundle_receipt(bundle_hash)
         return receipt
+
+    async def wait_for_bundle_receipt(self, bundle_hash, attempts=30, interval=0.2):
+        """Custom function to poll for bundle receipt"""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "eth_getTransactionReceipt",
+            "params": [bundle_hash],
+        }
+        for _ in range(attempts):
+            async with self.session.post(
+                self.state.sequencer_rpc_url, json=payload, timeout=5
+            ) as r:
+                r.raise_for_status()
+                data = await r.json()
+            if "error" in data:
+                code = data["error"].get("code")
+                if code == -32602:
+                    self.logger.warning(
+                        "Bundle was dropped from the pool (likely expired)"
+                    )
+                    return None
+            receipt = data.get("result")
+            if receipt:
+                return receipt
+            await asyncio.sleep(interval)
+        raise TimeoutError("No receipt within polling period")
 
     async def on_new_block(self, ws):
         """Sends RFQ via ws"""
@@ -185,10 +237,9 @@ class UniswapV4Client:
             "quoteExactOutputSingle", args=[quote_input_params]
         )
 
-    def encode_and_sign_exec_tx(self, zero_for_one: bool):
+    def encode_and_sign_exec_tx(self, zero_for_one: bool, cap_token1: int):
         """zero_for_one: False for BUY, True for SELL"""
         amount_token0 = int(TOKEN0_INPUT * 10**TOKEN0_DECIMALS)
-        cap_token1 = 0 if zero_for_one else 2**128 - 1
         swap_exact_params = encode(
             [
                 "address",
@@ -260,9 +311,9 @@ class UniswapV4Client:
                 self.state.wallet_address, "pending"
             ),
             "gas": 1_000_000,
-            "maxFeePerGas": 600_000,
+            "maxFeePerGas": 1_100_000_000,
             "type": "0x2",
-            "maxPriorityFeePerGas": 100_000,
+            "maxPriorityFeePerGas": 1_000_000_000,
             "chainId": self.state.chain_id,
         }
         signed = self.state.web3_rpc.eth.account.sign_transaction(

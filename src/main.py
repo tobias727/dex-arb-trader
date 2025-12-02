@@ -14,7 +14,6 @@ from src.utils.utils import (
     setup_logger,
 )
 from src.utils.telegram_bot import TelegramBot
-from src.utils.exceptions import ExecutionError
 from src.config import (
     TOKEN0_INPUT,
     MIN_EDGE,
@@ -23,6 +22,7 @@ from src.config import (
     BINANCE_FEE,
     TOKEN1_DECIMALS,
     BINANCE_BASE_URL_WS,
+    VERSION,
 )
 
 
@@ -67,7 +67,6 @@ class DexArbTrader:
         await self.binance_client.init_session()
         await self.uniswap_client.init_session()
         self.request_balance_update()
-        self.request_exec_signing()
         try:
             async with asyncio.TaskGroup() as tg:
                 _task1 = tg.create_task(self.listen_uniswap())
@@ -199,13 +198,17 @@ class DexArbTrader:
         edge = adj_u_bid - adj_b_ask
         # CEX_buy_DEX_sell
         if edge > MIN_EDGE and self.state.tradeable_sides["CEX_buy_DEX_sell"]:
-            await self.execute("CEX_buy_DEX_sell")
+            await self.execute(
+                "CEX_buy_DEX_sell", adj_b_ask
+            )  # u_cap_token1 = min amount out
         elif edge > 0:
             self.logger.warning("Detected: CEX_buy_DEX_sell, %s", f"{edge:_}")
         # CEX_sell_DEX_buy
         edge = adj_b_bid - adj_u_ask
         if edge > MIN_EDGE and self.state.tradeable_sides["CEX_sell_DEX_buy"]:
-            await self.execute("CEX_sell_DEX_buy")
+            await self.execute(
+                "CEX_sell_DEX_buy", adj_b_bid
+            )  # u_cap_token1 = max amount in
         elif edge > 0:
             self.logger.warning("Detected: CEX_sell_DEX_buy, %s", f"{edge:_}")
         self.logger.info(
@@ -221,26 +224,34 @@ class DexArbTrader:
             self.state.ask_latency * 1000,
         )
 
-    async def execute(self, side):
+    async def execute(self, side, u_cap_token1):
         """Execute trade"""
-        task1 = None
-        task2 = None
         if side == "CEX_buy_DEX_sell":
-            async with asyncio.TaskGroup() as tg:
-                task1 = tg.create_task(self.binance_client.execute_trade("BUY"))
-                task2 = tg.create_task(self.uniswap_client.execute_trade("SELL"))
+            await self._execute_sequential(
+                u_zero_for_one=True, b_side="BUY", u_cap_token1=u_cap_token1
+            )
         elif side == "CEX_sell_DEX_buy":
-            async with asyncio.TaskGroup() as tg:
-                task1 = tg.create_task(self.binance_client.execute_trade("SELL"))
-                task2 = tg.create_task(self.uniswap_client.execute_trade("BUY"))
-        self.state.last_trade_result["response_binance"] = task1.result()
-        self.state.last_trade_result["receipt_uniswap"] = task2.result()
-        # pylint: disable=no-member
-        if self.state.last_trade_result["receipt_uniswap"].status != 1:
-            raise ExecutionError
-        await self.process_trade_result()
-        self.request_exec_signing()
+            await self._execute_sequential(
+                u_zero_for_one=False, b_side="SELL", u_cap_token1=u_cap_token1
+            )
         self.request_balance_update()
+
+    async def _execute_sequential(self, u_zero_for_one, b_side, u_cap_token1):
+        # first uniswap execution
+        receipt = await self.uniswap_client.execute_trade(
+            u_zero_for_one, u_cap_token1, self.state.current_block_number_head
+        )
+        if receipt is None:
+            return
+        if int(receipt["status"], 16) == 1:
+            # on confirmation binance execution
+            self.state.last_trade_result["response_binance"] = (
+                await self.binance_client.execute_trade(b_side)
+            )
+            self.state.last_trade_result["receipt_uniswap"] = receipt
+            await self.process_trade_result()
+        else:
+            self.logger.error("Receipt status: %s", receipt)
 
     async def process_trade_result(self):
         """Calculates PnL, saves to csv and notifies telegram bot"""
@@ -260,18 +271,18 @@ class DexArbTrader:
         ] - (self.state.opportunity_detected_ts * 1000)
         self.logger.info(
             "Executed: pnl=%s\n"
-            "                               Uniswap:  %sB, %sf, 0x%s\n"
+            "                               Uniswap:  %sB, %sf, %s\n"
             "                               Binance:  %.1fms, %s",
             pnl,
             u_executed_latency,
             flashblock,
-            self.state.last_trade_result["receipt_uniswap"]["transactionHash"].hex(),
+            self.state.last_trade_result["receipt_uniswap"]["transactionHash"],
             b_executed_latency,
             self.state.last_trade_result["response_binance"]["fills"],
         )
         await self.telegram_bot.notify_executed(pnl)
         append_trade_to_csv(
-            "trades.csv" if TESTNET else "trades_LIVE.csv",
+            f"trades_v{VERSION}.csv" if TESTNET else f"trades_v{VERSION}_LIVE.csv",
             {
                 "response_binance": self.state.last_trade_result["response_binance"],
                 "receipt_uniswap": self.state.last_trade_result["receipt_uniswap"],
@@ -286,8 +297,7 @@ class DexArbTrader:
     async def find_trade_in_flashblocks(self):
         """Searches the flashblock position in the executed block"""
         tx_hash = (
-            "0x"
-            + self.state.last_trade_result["receipt_uniswap"]["transactionHash"].hex()
+            "0x" + self.state.last_trade_result["receipt_uniswap"]["transactionHash"]
         )
         await asyncio.sleep(0.2)
         for entry in self.state.last_blocks:
@@ -301,23 +311,6 @@ class DexArbTrader:
         self.state.block_processing_paused = True
         if not self.state.balance_update_task or self.state.balance_update_task.done():
             self.state.balance_update_task = asyncio.create_task(self.update_balances())
-
-    def request_exec_signing(self):
-        """Starts async task for encode+sign and blocks processing until done."""
-        self.state.block_processing_paused = True
-        if not self.state.exec_sign_task or self.state.exec_sign_task.done():
-            self.state.exec_sign_task = asyncio.create_task(
-                self.update_uniswap_exec_signed_tx()
-            )
-
-    async def update_uniswap_exec_signed_tx(self):
-        """Updates pre-signed tx with current nonce"""
-        self.uniswap_client.state.signed_raw_tx_buy = (
-            self.uniswap_client.encode_and_sign_exec_tx(zero_for_one=False)
-        )
-        self.uniswap_client.state.signed_raw_tx_sell = (
-            self.uniswap_client.encode_and_sign_exec_tx(zero_for_one=True)
-        )
 
     async def update_balances(self):
         """Updates self.state.balances"""
@@ -333,11 +326,15 @@ class DexArbTrader:
             b_eth > TOKEN0_INPUT and u_usdc > TOKEN0_INPUT * 3_000
         )
         self.logger.info(
-            "Balances: b_eth=%s, b_usdc=%s, u_eth=%s, u_usdc=%s",
+            "Balances: b_eth=%s, b_usdc=%s, u_eth=%s, u_usdc=%s\n"
+            "                               Tradeable sides: "
+            "CEX_buy_DEX_sell '%s', CEX_sell_DEX_buy '%s'",
             b_eth,
             b_usdc,
             u_eth,
             u_usdc,
+            self.state.tradeable_sides["CEX_buy_DEX_sell"],
+            self.state.tradeable_sides["CEX_sell_DEX_buy"],
         )
 
 

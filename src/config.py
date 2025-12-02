@@ -18,8 +18,8 @@ def validate_eth_address(address: str) -> str:
 
 
 load_dotenv()
-is_local = bool(os.getenv("LOCAL"))
-config = load_config("values_local.yaml" if is_local else "values_ec2.yaml")
+is_remote = os.getenv("REMOTE")
+config = load_config("values_remote.yaml" if is_remote else "values_local.yaml")
 
 OUTPUT_DIRECTORY = os.path.join(os.getcwd(), "out")
 
@@ -40,6 +40,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 # Unichain (Mainnet)
 UNICHAIN_CHAINID = config["unichain"]["chain_id"]
+UNICHAIN_SEQUENCER_RPC_URL = config["unichain"]["sequencer_rpc_url"]
 UNICHAIN_RPC_URL = config["unichain"]["rpc_url"]
 UNICHAIN_WS_URL = config["unichain"]["ws_url"]
 UNICHAIN_FLASHBLOCKS_WS_URL = config["unichain"]["flashblocks_ws_url"]
@@ -61,6 +62,9 @@ UNICHAIN_ETH_NATIVE = validate_eth_address(
 
 # Unichain Sepolia (Testnet)
 UNICHAIN_SEPOLIA_CHAINID = config["unichain-sepolia-testnet"]["chain_id"]
+UNICHAIN_SEPOLIA_SEQUENCER_RPC_URL = config["unichain-sepolia-testnet"][
+    "sequencer_rpc_url"
+]
 UNICHAIN_SEPOLIA_RPC_URL = config["unichain-sepolia-testnet"]["rpc_url"]
 UNICHAIN_SEPOLIA_WS_URL = config["unichain-sepolia-testnet"]["ws_url"]
 UNICHAIN_SEPOLIA_FLASHBLOCKS_WS_URL = config["unichain-sepolia-testnet"][
@@ -92,6 +96,7 @@ BINANCE_BASE_URL_RPC_TESTNET = config["binance"]["base_url_rpc_testnet"]
 BINANCE_BASE_URL_WS = config["binance"]["base_url_ws"]
 
 # Execution
+VERSION = config["execution"]["version"]
 TESTNET = config["execution"]["testnet"]
 TOKEN0_INPUT = config["execution"]["token0_input"]
 TOKEN0_DECIMALS = config["execution"]["token0_decimals"]

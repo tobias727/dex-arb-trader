@@ -8,6 +8,7 @@ import asyncio
 import aiohttp
 from src.config import (
     TESTNET,
+    VERSION,
 )
 from src.utils.exceptions import IPChangeError
 
@@ -44,7 +45,9 @@ def setup_logger(log_dir: str = "out/logs") -> logging.Logger:
     log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
 
     os.makedirs(log_dir, exist_ok=True)
-    log_file_name = "trading_bot" if TESTNET else "trading_bot_LIVE"
+    log_file_name = (
+        f"trading_bot_v{VERSION}" if TESTNET else f"trading_bot_v{VERSION}_LIVE"
+    )
     log_file = os.path.join(log_dir, f"{log_file_name}.log")
 
     # Console handler
@@ -72,15 +75,15 @@ def calculate_pnl(response_binance, receipt_uniswap):
     uniswap_usdc_amount = Decimal("0")
     for log in receipt_uniswap["logs"]:
         if (
-            log["topics"][0].hex()
+            log["topics"][0].lower()
             == "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
         ):  # Transfer(address,address,uint256)
-            uniswap_usdc_amount += Decimal(int(log["data"].hex(), 16)) / Decimal(
+            uniswap_usdc_amount += Decimal(int(log["data"], 16)) / Decimal(
                 "1000000"
             )  # USDC 6 decimals
     gas_fee_eth = (
-        Decimal(receipt_uniswap["gasUsed"])
-        * Decimal(receipt_uniswap["effectiveGasPrice"])
+        Decimal(int(receipt_uniswap["gasUsed"], 16))
+        * Decimal(int(receipt_uniswap["effectiveGasPrice"], 16))
         / Decimal(1e18)
     )
     gas_fee_usdc = gas_fee_eth * Decimal(eth_to_usdc_price)
