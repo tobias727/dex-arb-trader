@@ -1,17 +1,13 @@
 import time
+import asyncio
 import ssl
 import hmac
-from urllib.parse import parse_qsl
+from urllib.parse import urlencode
 import hashlib
 import aiohttp
-from src.config import (
-    TESTNET,
-    TOKEN0_INPUT,
-    BINANCE_BASE_URL_RPC_TESTNET,
-    BINANCE_BASE_URL_RPC,
-    BINANCE_API_KEY_TESTNET,
+from config import (
+    BINANCE_URI_REST,
     BINANCE_API_KEY,
-    BINANCE_API_SECRET_TESTNET,
     BINANCE_API_SECRET,
 )
 
@@ -19,83 +15,62 @@ from src.config import (
 class BinanceClient:
     """CEX client"""
 
-    def __init__(self, logger):
-        self.binance_rpc_url_trade = f"{BINANCE_BASE_URL_RPC_TESTNET if TESTNET else BINANCE_BASE_URL_RPC}/api/v3/order"
-        self.binance_rpc_url_account = f"{BINANCE_BASE_URL_RPC_TESTNET if TESTNET else BINANCE_BASE_URL_RPC}/api/v3/account"
-        self.binance_api_key = BINANCE_API_KEY_TESTNET if TESTNET else BINANCE_API_KEY
-        self.binance_api_secret = (
-            BINANCE_API_SECRET_TESTNET if TESTNET else BINANCE_API_SECRET
+    def __init__(self):
+        """Opens HTTPS connection"""
+        ssl_context = ssl._create_unverified_context()
+        connector = aiohttp.TCPConnector(ssl=ssl_context)
+        self.session = aiohttp.ClientSession(
+            base_url=BINANCE_URI_REST,
+            connector=connector,
+            raise_for_status=True,
+            headers={"X-MBX-APIKEY": BINANCE_API_KEY},
         )
-        self.logger = logger
-        self.session = None
-        self.ssl_context = (
-            ssl._create_unverified_context()
-        )  # self-signed certificate on ec2
 
-    async def init_session(self):
-        """Opens connection"""
-        if self.session is None:
-            self.session = aiohttp.ClientSession()
+    async def keep_connection_hot(self, ping_interval: int = 30) -> None:
+        """Sends HTTP request to keep TCP/TLS connection alive"""
+        while True:
+            async with self.session.get("/api/v3/ping") as r:
+                await r.read()
+            await asyncio.sleep(ping_interval)
 
-    async def close(self):
-        """Closes connection"""
-        if self.session:
-            await self.session.close()
-
-    async def execute_trade(self, side: str):
-        """Returns 'FILLED' if successful"""
-        api_params = (
-            f"symbol=ETHUSDC&side={side.upper()}&type=MARKET"
-            f"&quantity={TOKEN0_INPUT}&timestamp={int(time.time()*1000)}"
-        )
-        signed_params = await self._sign_payload(api_params)
-        headers = {"X-MBX-APIKEY": self.binance_api_key}
-        async with self.session.post(
-            url=self.binance_rpc_url_trade,
-            ssl=self.ssl_context,
-            headers=headers,
-            params=dict(parse_qsl(signed_params)),
-            timeout=10,
-        ) as r:
-            r.raise_for_status()
-            return await r.json()
-
-    async def _sign_payload(self, api_params: str) -> dict:
-        """Signs the request params with API secret"""
-        signature = hmac.new(
-            self.binance_api_secret.encode("utf-8"),
-            api_params.encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
-        return f"{api_params}&signature={signature}"
-
-    async def get_balances(self):
+    async def get_balances(self) -> tuple:
         """Returns balances for USDC and ETH"""
-        api_params = f"timestamp={int(time.time()*1000)}"
-        signed_params = await self._sign_payload(api_params)
-        headers = {"X-MBX-APIKEY": self.binance_api_key}
+        params = {"timestamp": int(time.time() * 1000)}
+        signed_params = self._sign_params(params)
         async with self.session.get(
-            self.binance_rpc_url_account,
-            ssl=self.ssl_context,
-            headers=headers,
+            "/api/v3/account",
             params=signed_params,
-            timeout=10,
         ) as r:
-            r.raise_for_status()
             account_data = await r.json()
 
-        balance_eth = None
-        balance_usdc = None
-        for balance in account_data["balances"]:
-            asset = balance.get("asset")
-            free_amount = balance.get("free")
-            locked_amount = balance.get("locked")
-            if asset == "ETH":
-                balance_eth = free_amount
-                if float(locked_amount) > 0:
-                    self.logger.warning(
-                        "Locked funds in Binance for Asset ETH: %s", locked_amount
-                    )
-            elif asset == "USDC":
-                balance_usdc = free_amount
-        return float(balance_eth), float(balance_usdc)
+        bal_map = {b["asset"]: b["free"] for b in account_data.get("balances", [])}
+
+        eth_str = bal_map.get("ETH")
+        usdc_str = bal_map.get("USDC")
+
+        return float(eth_str), float(usdc_str)
+
+    async def execute_trade(self, side: str, qty: str) -> dict:
+        """Returns 'FILLED' if successful"""
+        params = {
+            "symbol": "ETHUSDC",
+            "side": side.upper(),
+            "type": "MARKET",
+            "quantity": qty,
+            "timestamp": int(time.time() * 1000),
+        }
+        signed_params = self._sign_params(params)
+        async with self.session.post(
+            "/api/v3/order",
+            params=signed_params,
+        ) as r:
+            return await r.json()
+
+    @staticmethod
+    def _sign_params(params: dict) -> dict:
+        qs = urlencode(params)
+        sig = hmac.new(
+            BINANCE_API_SECRET.encode(), qs.encode(), hashlib.sha256
+        ).hexdigest()
+        params["signature"] = sig
+        return params

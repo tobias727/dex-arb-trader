@@ -1,5 +1,5 @@
 from telegram.ext import ApplicationBuilder
-from src.config import (
+from config import (
     TELEGRAM_TOKEN,
     TELEGRAM_CHAT_ID,
     TESTNET,

@@ -6,11 +6,10 @@ from decimal import Decimal, ROUND_DOWN
 import csv
 import asyncio
 import aiohttp
-from src.config import (
+from config import (
     TESTNET,
     VERSION,
 )
-from src.utils.exceptions import IPChangeError
 
 
 def load_pools(json_filepath):
@@ -35,7 +34,7 @@ async def monitor_ip_change(logger, interval=300):
         await asyncio.sleep(interval)
         current_ip = await fetch_public_ip()
         if current_ip != initial_ip:
-            raise IPChangeError(
+            raise RuntimeError(
                 f"Public IP changed: {initial_ip} -> {current_ip}. Aborting for security."
             )
 
