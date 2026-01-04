@@ -17,7 +17,9 @@ class BinanceClient:
 
     def __init__(self):
         """Opens HTTPS connection"""
-        ssl_context = ssl._create_unverified_context() # TODO: ssl.create_default_context()
+        ssl_context = (
+            ssl._create_unverified_context()
+        )  # TODO: ssl.create_default_context()
         connector = aiohttp.TCPConnector(ssl=ssl_context)
         self.session = aiohttp.ClientSession(
             base_url=BINANCE_URI_REST,

@@ -92,7 +92,7 @@ class ArbDetector:
                 "#%s-%s: B b=%.6f, a=%.6f | U p=%.6f",
                 block_number,
                 index,
-                eff_b_buy,
                 eff_b_sell,
+                eff_b_buy,
                 u_price,
             )
