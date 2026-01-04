@@ -48,11 +48,11 @@ class Executor:
 
     def execute_b_sell_u_buy(self, dy_in, flashblock_index):
         """Delegates execution given dy_in (USDC)"""
-        asyncio.create_task(self._guarded_execute(True, flashblock_index))
+        asyncio.create_task(self._guarded_execute(False, flashblock_index))
 
     def execute_b_buy_u_sell(self, dx_in, flashblock_index):
         """Delegates execution given dx_in (ETH)"""
-        asyncio.create_task(self._guarded_execute(False, flashblock_index))
+        asyncio.create_task(self._guarded_execute(True, flashblock_index))
 
     async def _guarded_execute(self, zero_for_one: bool, flashblock_index: int):
         async with self._exec_lock:
@@ -64,7 +64,7 @@ class Executor:
             return
 
         # delegate execute to clients
-        b_side = "SELL" if zero_for_one else "BUY"
+        b_side = "BUY" if zero_for_one else "SELL"
         b_status = await self.binance_client.execute_trade(b_side, 0.002)
         u_status = await self.uniswap_client.execute_trade(zero_for_one, 0.002)
 
@@ -81,28 +81,28 @@ class Executor:
         # TODO: TelegramBot.notify_executed()
         self.logger.info("Post-execute status: %s, %s", b_status, u_status)
         asyncio.create_task(self.fetch_balances())
-        sys.exit(1)
+        sys.exit(0)
 
     def _pre_execute_hook(self, zero_for_one, flashblock_index):
         """Checks balances + flashblock timings"""
         # balances check
         b = self.balances
         if zero_for_one:
-            # B_SELL_U_BUY
-            if b.b_eth < 0.002 or b.u_usdc < 10:
-                self.logger.warning(
-                    "Pre-check: insufficient Balance b_sell_u_buy: b_eth %s, u_usdc %s",
-                    b.b_eth,
-                    b.u_usdc,
-                )
-                return False
-        else:
             # B_BUY_U_SELL
             if b.b_usdc < 10 or b.u_eth < 0.002:
                 self.logger.warning(
                     "Pre-check: insufficient Balance b_buy_u_sell: b_usdc %s, u_eth %s",
                     b.b_usdc,
                     b.u_eth,
+                )
+                return False
+        else:
+            # B_SELL_U_BUY
+            if b.b_eth < 0.002 or b.u_usdc < 10:
+                self.logger.warning(
+                    "Pre-check: insufficient Balance b_sell_u_buy: b_eth %s, u_usdc %s",
+                    b.b_eth,
+                    b.u_usdc,
                 )
                 return False
 

@@ -17,7 +17,7 @@ class BinanceClient:
 
     def __init__(self):
         """Opens HTTPS connection"""
-        ssl_context = ssl._create_unverified_context()
+        ssl_context = ssl._create_unverified_context() # TODO: ssl.create_default_context()
         connector = aiohttp.TCPConnector(ssl=ssl_context)
         self.session = aiohttp.ClientSession(
             base_url=BINANCE_URI_REST,
@@ -50,7 +50,7 @@ class BinanceClient:
 
         return float(eth_str), float(usdc_str)
 
-    async def execute_trade(self, side: str, qty: str) -> dict:
+    async def execute_trade(self, side: str, qty: float) -> dict:
         """Returns 'FILLED' if successful"""
         params = {
             "symbol": "ETHUSDC",
