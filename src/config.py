@@ -18,8 +18,7 @@ def validate_eth_address(address: str) -> str:
 
 
 load_dotenv()
-is_remote = os.getenv("REMOTE")
-config = load_config("values_remote.yaml" if is_remote else "values_local.yaml")
+config = load_config("values.yaml")
 
 OUTPUT_DIRECTORY = os.path.join(os.getcwd(), "out")
 
@@ -69,7 +68,6 @@ BINANCE_URI_SBE = config["binance"]["uri_sbe"]
 
 # Execution
 VERSION = config["execution"]["version"]
-TESTNET = config["execution"]["testnet"]
 TOKEN0_INPUT = config["execution"]["token0_input"]
 TOKEN0_DECIMALS = config["execution"]["token0_decimals"]
 TOKEN1_DECIMALS = config["execution"]["token1_decimals"]

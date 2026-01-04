@@ -68,7 +68,7 @@ class ArbDetector:
 
             ##
             edge_abs = eff_b_sell - u_price
-            self.logger.info(
+            self.logger.warning(
                 "[B sell / U buy] edge: %.6f USDC/ETH, amount1_in: %.3f USDC",
                 edge_abs,
                 dy_in / 1e6,
@@ -81,7 +81,7 @@ class ArbDetector:
 
             ##
             edge_abs = u_price - eff_b_buy
-            self.logger.info(
+            self.logger.warning(
                 "[B buy / U sell] edge: %.6f USDC/ETH, amount0_in: %.6f ETH",
                 edge_abs,
                 dx_in / 1e18,

@@ -3,8 +3,7 @@ import logging
 
 from utils.telegram_bot import TelegramBot
 from utils.utils import monitor_ip_change
-from utils.initialize_uniswap_pool import initialize_uniswap_pool
-from utils.web3_utils import connect_web3_async
+from utils.initialize_uniswap_pool import snapshot_once
 from clients.binance_client import BinanceClient
 from clients.uniswap_client import UniswapClient
 from feeds.flashblock_feed import UnichainFlashFeed
@@ -28,14 +27,6 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s: %(message)s",
 )
 logger = logging.getLogger()
-
-
-async def snapshot_once(feed: UnichainFlashFeed):
-    """Initialize pool state."""
-    w3 = connect_web3_async(UNICHAIN_RPC_URL + ALCHEMY_API_KEY)
-    ticks_raw, snapshot_block = await initialize_uniswap_pool(w3)
-    feed.create_snapshot(ticks_raw, snapshot_block)
-    logger.info("Initial snapshot applied at block %s", snapshot_block)
 
 
 async def fetch_balances(
@@ -87,7 +78,7 @@ async def main():
         # Unichain
         ws_reader(UNICHAIN_FLASHBLOCKS_WS_URL, u_queue),
         feed_loop(u_queue, u_feed),
-        snapshot_once(u_feed),
+        snapshot_once(u_feed, logger),
         uniswap_client.keep_connection_hot(ping_interval=30),
         # Binance
         ws_reader(b_url, b_queue, headers=b_headers, ping_interval=20, ping_timeout=60),

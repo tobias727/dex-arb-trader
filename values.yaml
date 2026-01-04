@@ -1,6 +1,5 @@
 execution:
   version: "1.4.0"
-  testnet: False
   token0_input: 0.0020 # ETH
   token0_decimals: 18
   token1_decimals: 6

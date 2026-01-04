@@ -7,7 +7,6 @@ import csv
 import asyncio
 import aiohttp
 from config import (
-    TESTNET,
     VERSION,
 )
 
@@ -44,9 +43,7 @@ def setup_logger(log_dir: str = "out/logs") -> logging.Logger:
     log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
 
     os.makedirs(log_dir, exist_ok=True)
-    log_file_name = (
-        f"trading_bot_v{VERSION}" if TESTNET else f"trading_bot_v{VERSION}_LIVE"
-    )
+    log_file_name = f"trading_bot_v{VERSION}_LIVE"
     log_file = os.path.join(log_dir, f"{log_file_name}.log")
 
     # Console handler

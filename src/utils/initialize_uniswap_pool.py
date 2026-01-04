@@ -1,11 +1,24 @@
-from web3 import AsyncWeb3
 import asyncio
+from logging import Logger
+from web3 import AsyncWeb3
 
+from utils.web3_utils import connect_web3_async
 from config import (
     UNISWAP_POOL_ID,
     TICK_BITMAP_HELPER_ADDRESS,
     TICK_BITMAP_HELPER_ABI,
+    UNICHAIN_RPC_URL,
+    ALCHEMY_API_KEY,
 )
+
+
+async def snapshot_once(feed, logger: Logger) -> None:
+    """Initialize pool state."""
+    w3 = connect_web3_async(UNICHAIN_RPC_URL + ALCHEMY_API_KEY)
+    ticks_raw, snapshot_block = await initialize_uniswap_pool(w3)
+    feed.create_snapshot(ticks_raw, snapshot_block)
+
+    logger.warning("Initial snapshot applied at block %s", snapshot_block)
 
 
 async def initialize_uniswap_pool(w3: AsyncWeb3):

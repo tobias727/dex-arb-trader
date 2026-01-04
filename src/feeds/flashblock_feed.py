@@ -1,5 +1,4 @@
-import time
-import sys
+import asyncio
 import orjson
 import brotli
 from eth_abi import decode as abi_decode
@@ -8,6 +7,7 @@ from config import (
     UNICHAIN_POOL_MANAGER,
     UNISWAP_POOL_ID,
 )
+from utils.initialize_uniswap_pool import snapshot_once
 from state.pool import Pool, Tick
 from engine.detector import ArbDetector
 
@@ -122,7 +122,7 @@ class UnichainFlashFeed:
         elif topics[0] == DONATE_TOPIC and topics[1] == pool_id:
             # DONATE event
             self.logger.warning("DONATE event - not implemented")
-            # TODO: implement
+            # not implemented, resync state
             self.request_resync()
 
     def _process_swap_event(self, sqrt_price_x96, liquidity, tick):
@@ -209,9 +209,9 @@ class UnichainFlashFeed:
 
     def request_resync(self):
         """Request new snapshot"""
-        # TODO: implement load and apply new snapshot to resync
-        self.logger.warning("Detected diverging local state, aborting...")
-        sys.exit(1)
+        self.snapshot_block_number = None
+        self.logger.warning("Detected diverging local state, resyncing...")
+        asyncio.create_task(snapshot_once(self, self.logger))
 
     @staticmethod
     def decode_swap(data_hex: str):
