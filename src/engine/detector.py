@@ -64,7 +64,7 @@ class ArbDetector:
         if eff_b_sell > u_price:
             # Binance SELL, Uniswap BUY
             dy_in = self._calc_amount1_with_fee(u_L, b_bid_sqrt_x96, u_sqrt_price_x96)
-            # self.executor.execute_b_sell_u_buy(dy_in, index)
+            self.executor.execute_b_sell_u_buy(dy_in, index)
 
             ##
             edge_abs = eff_b_sell - u_price
@@ -77,7 +77,7 @@ class ArbDetector:
         elif eff_b_buy < u_price:
             # Binance BUY, Uniswap Sell
             dx_in = self._calc_amount0_with_fee(u_L, b_ask_sqrt_x96, u_sqrt_price_x96)
-            # self.executor.execute_b_buy_u_sell(dx_in, index)
+            self.executor.execute_b_buy_u_sell(dx_in, index)
 
             ##
             edge_abs = u_price - eff_b_buy

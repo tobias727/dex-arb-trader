@@ -56,7 +56,7 @@ class BinanceClient:
             "symbol": "ETHUSDC",
             "side": side.upper(),
             "type": "MARKET",
-            "quantity": qty,
+            "quantity": str(qty),
             "timestamp": int(time.time() * 1000),
         }
         signed_params = self._sign_params(params)
