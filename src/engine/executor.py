@@ -1,4 +1,5 @@
 from datetime import datetime
+import time
 from logging import Logger
 import asyncio
 from typing import Callable, Awaitable
@@ -76,14 +77,25 @@ class Executor:
         self._exec_in_progress = False
 
     async def _execute(self, zero_for_one, flashblock_index):
+        start = datetime.now()
+        start_ms = start.microsecond // 1000
+        start_mono = time.perf_counter()
+        self.logger.debug(
+            "exec_start: zero_for_one=%s fb_index=%s local_ms=%03d mono=%.6f",
+            zero_for_one,
+            flashblock_index,
+            start_ms,
+            start_mono,
+        )
         # pre-check
         if not self._pre_execute_hook(zero_for_one, flashblock_index):
             return
 
         # delegate execute to clients
         b_side = "BUY" if zero_for_one else "SELL"
-        b_response = await self.binance_client.execute_trade(b_side, 0.002)
-        u_receipt = await self.uniswap_client.execute_trade(zero_for_one, 0.002)
+        b_coro = self.binance_client.execute_trade(b_side, 0.002)
+        u_coro = self.uniswap_client.execute_trade(zero_for_one, 0.002)
+        b_response, u_receipt = await asyncio.gather(b_coro, u_coro)
 
         # post-check
         self._post_execute_hook(b_response, u_receipt)
