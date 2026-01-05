@@ -90,7 +90,8 @@ class Executor:
 
     def _post_execute_hook(self, b_response, u_receipt):
         """Refreshes balances"""
-        tx_hash = u_receipt.get("transactionHash")
+        tx_hash_raw = u_receipt.get("transactionHash")
+        tx_hash = "0x" + tx_hash_raw.hex()
         fb_info = self.flashblock_buffer.lookup(tx_hash)
         if fb_info is not None:
             block_number, index = fb_info

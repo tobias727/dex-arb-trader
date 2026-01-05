@@ -99,7 +99,7 @@ class UnichainFlashFeed:
             _tx_type, tx_data = next(iter(receipt.items()))
             if tx_data.get("status") != "0x1":
                 continue
-            tx_hashes.append("0x" + tx_hash.hex())
+            tx_hashes.append(tx_hash)
             logs = tx_data.get("logs", [])
             if not logs:
                 continue
