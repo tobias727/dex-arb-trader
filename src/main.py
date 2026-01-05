@@ -12,6 +12,7 @@ from infra.ws import ws_reader, feed_loop
 from state.orderbook import OrderBook
 from state.pool import Pool
 from state.balances import Balances
+from state.flashblocks import FlashblockBuffer
 from engine.detector import ArbDetector
 from engine.executor import Executor
 from config import (
@@ -50,6 +51,7 @@ async def main():
     pool = Pool()
     orderbook = OrderBook()
     balances = Balances()
+    flashblock_buffer = FlashblockBuffer()
 
     # clients
     binance_client = BinanceClient()
@@ -62,12 +64,15 @@ async def main():
         lambda: fetch_balances(balances, binance_client, uniswap_client),
         binance_client,
         uniswap_client,
+        flashblock_buffer,
     )
     detector = ArbDetector(pool, orderbook, executor, logger)
 
     # feeds
     u_queue = asyncio.Queue(maxsize=1024)
-    u_feed = UnichainFlashFeed(pool, logger, detector.on_flashblock_done)
+    u_feed = UnichainFlashFeed(
+        pool, logger, detector.on_flashblock_done, flashblock_buffer
+    )
     b_queue = asyncio.Queue(maxsize=1024)
     b_feed = BinanceDepthFeed(orderbook, logger)
     b_url = f"{BINANCE_URI_SBE}/ws/ethusdc@bestBidAsk"

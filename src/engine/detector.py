@@ -87,12 +87,11 @@ class ArbDetector:
                 dx_in / 1e18,
             )
 
-        else:
-            self.logger.info(
-                "#%s-%s: B b=%.6f, a=%.6f | U p=%.6f",
-                block_number,
-                index,
-                eff_b_sell,
-                eff_b_buy,
-                u_price,
-            )
+        self.logger.info(
+            "#%s-%s: B b=%.6f, a=%.6f | U p=%.6f",
+            block_number,
+            index,
+            eff_b_sell,
+            eff_b_buy,
+            u_price,
+        )

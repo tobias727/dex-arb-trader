@@ -9,6 +9,7 @@ from config import (
 )
 from utils.initialize_uniswap_pool import snapshot_once
 from state.pool import Pool, Tick
+from state.flashblocks import FlashblockBuffer
 from engine.detector import ArbDetector
 
 SWAP_TOPIC = "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f"
@@ -37,14 +38,20 @@ class UnichainFlashFeed:
         "last_block",
         "last_flashblock_index",
         "on_flashblock_done",
+        "flashblock_buffer",
     )
 
     def __init__(
-        self, pool: Pool, logger, on_flashblock_done: ArbDetector.on_flashblock_done
+        self,
+        pool: Pool,
+        logger,
+        on_flashblock_done: ArbDetector.on_flashblock_done,
+        flashblock_buffer: FlashblockBuffer,
     ):
         self.pool = pool
         self.logger = logger
         self.on_flashblock_done = on_flashblock_done
+        self.flashblock_buffer = flashblock_buffer
 
         self.snapshot_block_number: int | None = None
         self.buffer: list[tuple] = []
@@ -87,10 +94,12 @@ class UnichainFlashFeed:
         receipts = payload.get("metadata", {}).get("receipts", {})
         if not receipts:
             return
-        for _tx_hash, receipt in receipts.items():
+        tx_hashes: list[str] = []
+        for tx_hash, receipt in receipts.items():
             _tx_type, tx_data = next(iter(receipt.items()))
             if tx_data.get("status") != "0x1":
                 continue
+            tx_hashes.append(tx_hash)
             logs = tx_data.get("logs", [])
             if not logs:
                 continue
@@ -101,6 +110,8 @@ class UnichainFlashFeed:
                 data = log.get("data", "")
                 topics = log.get("topics", [])
                 self._process_event(data, topics)
+        if tx_hashes:
+            self.flashblock_buffer.add_block(block_number, index, tx_hashes)
         self.on_flashblock_done(block_number, index)
 
     def _process_event(self, data: tuple, topics: list) -> None:

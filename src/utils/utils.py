@@ -65,7 +65,7 @@ def setup_logger(log_dir: str = "out/logs") -> logging.Logger:
 
 def calculate_pnl(response_binance, receipt_uniswap):
     """Function to calculate PnL after execution"""
-    # Here we use binance as price for gas fee calculation in USDC for simplicity
+    # use binance price for gas fee calculation in USDC for simplicity
     eth_to_usdc_price = Decimal(response_binance["fills"][0]["price"])
     # uniswap
     uniswap_usdc_amount = Decimal("0")
