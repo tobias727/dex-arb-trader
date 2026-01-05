@@ -1,4 +1,5 @@
 import asyncio
+from logging import Logger
 import orjson
 import brotli
 from eth_abi import decode as abi_decode
@@ -44,7 +45,7 @@ class UnichainFlashFeed:
     def __init__(
         self,
         pool: Pool,
-        logger,
+        logger: Logger,
         on_flashblock_done: ArbDetector.on_flashblock_done,
         flashblock_buffer: FlashblockBuffer,
     ):
