@@ -1,5 +1,4 @@
 from datetime import datetime
-import time
 from logging import Logger
 import asyncio
 from typing import Callable, Awaitable
@@ -9,6 +8,7 @@ from clients.uniswap_client import UniswapClient
 from state.balances import Balances
 from state.flashblocks import FlashblockBuffer
 from utils.utils import calculate_pnl
+from utils.telegram_bot import TelegramBot
 
 # key: flashblock index (last), value: MS Deadline to be included in flashblock (last) + 1
 MAX_MS_PER_INDEX = {
@@ -32,6 +32,7 @@ class Executor:
         "uniswap_client",
         "flashblock_buffer",
         "_exec_in_progress",
+        "telegram_bot",
     )
 
     def __init__(
@@ -42,6 +43,7 @@ class Executor:
         binance_client: BinanceClient,
         uniswap_client: UniswapClient,
         flashblock_buffer: FlashblockBuffer,
+        telegram_bot: TelegramBot,
     ):
         self.balances = balances
         self.logger = logger
@@ -49,6 +51,7 @@ class Executor:
         self.binance_client = binance_client
         self.uniswap_client = uniswap_client
         self.flashblock_buffer = flashblock_buffer
+        self.telegram_bot = telegram_bot
         self._exec_in_progress = False
 
     def execute_b_sell_u_buy(self, dy_in, flashblock_index):
@@ -88,9 +91,9 @@ class Executor:
         b_response, u_receipt = await asyncio.gather(b_coro, u_coro)
 
         # post-check
-        self._post_execute_hook(b_response, u_receipt)
+        await self._post_execute_hook(b_response, u_receipt)
 
-    def _post_execute_hook(self, b_response, u_receipt):
+    async def _post_execute_hook(self, b_response, u_receipt):
         """Refreshes balances"""
         tx_hash_raw = u_receipt.get("transactionHash")
         tx_hash = "0x" + tx_hash_raw.hex()
@@ -113,8 +116,8 @@ class Executor:
         #     u_receipt,
         # )
         # self.logger.info("Post-execute status: PnL: %s", pnl)
-        # TODO: TelegramBot.notify_executed()
-        asyncio.create_task(self.fetch_balances())
+        await self.telegram_bot.notify_executed("PNL_PLACEHOLDER")  # TODO: pnl
+        await self.fetch_balances()
 
     def _pre_execute_hook(self, zero_for_one, flashblock_index):
         """Checks balances + flashblock timings"""

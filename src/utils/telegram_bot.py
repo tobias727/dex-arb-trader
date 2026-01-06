@@ -11,13 +11,16 @@ class TelegramBot:
     def __init__(self):
         self.application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
+    async def _send(self, text: str) -> None:
+        await self.application.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text)
+
     async def notify_executed(self, pnl):
         """Sends a message when a trade is executed"""
         message = f"💰 Trade executed successfully! PnL: ${pnl}"
-        await self.application.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        await self._send(message)
 
     async def notify_crashed(self, e):
         """Sends a message when an Exception occurs"""
         message = f"❌ Trading bot crashed!\n\nException: {e}"
-        await self.application.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        await self._send(message)
         self.application.stop_running()

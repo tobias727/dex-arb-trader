@@ -17,8 +17,6 @@ from engine.detector import ArbDetector
 from engine.executor import Executor
 from config import (
     UNICHAIN_FLASHBLOCKS_WS_URL,
-    UNICHAIN_RPC_URL,
-    ALCHEMY_API_KEY,
     BINANCE_URI_SBE,
     BINANCE_API_KEY_ED25519,
 )
@@ -45,7 +43,7 @@ async def fetch_balances(
     )
 
 
-async def main():
+async def main(telegram_bot: TelegramBot):
     """Entrypoint"""
     # state
     pool = Pool()
@@ -65,6 +63,7 @@ async def main():
         binance_client,
         uniswap_client,
         flashblock_buffer,
+        telegram_bot,
     )
     detector = ArbDetector(pool, orderbook, executor, logger)
 
@@ -93,5 +92,15 @@ async def main():
     )
 
 
+async def entry():
+    """Initializes telegram bot and runs main with error handling"""
+    telegram_bot = TelegramBot()
+    try:
+        await main(telegram_bot)
+    except Exception as e:
+        await telegram_bot.notify_crashed(e)
+        raise
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(entry())
