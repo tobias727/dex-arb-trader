@@ -5,18 +5,27 @@ from feeds.binance_feed import BinanceDepthFeed
 
 
 async def ws_reader(
-    url, queue: asyncio.Queue, headers=None, ping_interval=None, ping_timeout=None
+    url,
+    queue: asyncio.Queue,
+    headers=None,
+    ping_interval=None,
+    ping_timeout=None,
+    reconnect_delay: float = 5.0,
 ):
     """Pushes raw_msg from a WebSocket connection to the provided buffer."""
-    async with websockets.connect(
-        url,
-        additional_headers=headers,
-        max_queue=None,
-        ping_interval=ping_interval,
-        ping_timeout=ping_timeout,
-    ) as ws:
-        async for raw_msg in ws:
-            await queue.put(raw_msg)
+    while True:
+        try:
+            async with websockets.connect(
+                url,
+                additional_headers=headers,
+                max_queue=None,
+                ping_interval=ping_interval,
+                ping_timeout=ping_timeout,
+            ) as ws:
+                async for raw_msg in ws:
+                    await queue.put(raw_msg)
+        except ConnectionResetError:
+            await asyncio.sleep(reconnect_delay)
 
 
 async def feed_loop(queue: asyncio.Queue, feed: UnichainFlashFeed | BinanceDepthFeed):

@@ -152,8 +152,8 @@ class UniswapClient:
             "value": amount_token0 if zero_for_one else 0,
             "nonce": nonce,
             "gas": 200_000,  # ~100-130k gas per tx
-            "maxFeePerGas": 1_001_000,  # 258 baseFeePerGas at 2026-01-04
+            "maxFeePerGas": 2_001_000,  # 258 baseFeePerGas at 2026-01-04
             "type": "0x2",
-            "maxPriorityFeePerGas": 1_000_000,
+            "maxPriorityFeePerGas": 2_000_000,
             "chainId": UNICHAIN_CHAINID,
         }
