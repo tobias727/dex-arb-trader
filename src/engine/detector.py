@@ -57,30 +57,35 @@ class ArbDetector:
             self.logger.info("#%s-%s: Waiting for price", block_number, index)
             return
 
-        # fees
+        # uni fees
+        u_bid = u_price * (1 - UNI_FEE)
+        u_ask = u_price / (1 - UNI_FEE)
+
+        # binance fees
         eff_b_buy = b_ask * (1 + BINANCE_FEE)
         eff_b_sell = b_bid * (1 - BINANCE_FEE)
 
-        if eff_b_sell > u_price:
+
+        if eff_b_sell > u_ask:
             # Binance SELL, Uniswap BUY
             dy_in = self._calc_amount1_with_fee(u_L, b_bid_sqrt_x96, u_sqrt_price_x96)
             self.executor.execute_b_sell_u_buy(dy_in, index)
 
             ##
-            edge_abs = eff_b_sell - u_price
+            edge_abs = eff_b_sell - u_ask
             self.logger.warning(
                 "[B sell / U buy] edge: %.6f USDC/ETH, amount1_in: %.3f USDC",
                 edge_abs,
                 dy_in / 1e6,
             )
 
-        elif eff_b_buy < u_price:
+        elif eff_b_buy < u_bid:
             # Binance BUY, Uniswap Sell
             dx_in = self._calc_amount0_with_fee(u_L, b_ask_sqrt_x96, u_sqrt_price_x96)
             self.executor.execute_b_buy_u_sell(dx_in, index)
 
             ##
-            edge_abs = u_price - eff_b_buy
+            edge_abs = u_bid - eff_b_buy
             self.logger.warning(
                 "[B buy / U sell] edge: %.6f USDC/ETH, amount0_in: %.6f ETH",
                 edge_abs,
@@ -88,10 +93,11 @@ class ArbDetector:
             )
 
         self.logger.info(
-            "#%s-%s: B b=%.6f, a=%.6f | U p=%.6f",
+            "#%s-%s: B b=%.6f, a=%.6f | U b=%.6f, a=%.6f",
             block_number,
             index,
             eff_b_sell,
             eff_b_buy,
-            u_price,
+            u_bid,
+            u_ask,
         )
