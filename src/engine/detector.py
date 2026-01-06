@@ -65,7 +65,6 @@ class ArbDetector:
         eff_b_buy = b_ask * (1 + BINANCE_FEE)
         eff_b_sell = b_bid * (1 - BINANCE_FEE)
 
-
         if eff_b_sell > u_ask:
             # Binance SELL, Uniswap BUY
             dy_in = self._calc_amount1_with_fee(u_L, b_bid_sqrt_x96, u_sqrt_price_x96)

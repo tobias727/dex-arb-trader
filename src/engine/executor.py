@@ -77,16 +77,6 @@ class Executor:
         self._exec_in_progress = False
 
     async def _execute(self, zero_for_one, flashblock_index):
-        start = datetime.now()
-        start_ms = start.microsecond // 1000
-        start_mono = time.perf_counter()
-        self.logger.debug(
-            "exec_start: zero_for_one=%s fb_index=%s local_ms=%03d mono=%.6f",
-            zero_for_one,
-            flashblock_index,
-            start_ms,
-            start_mono,
-        )
         # pre-check
         if not self._pre_execute_hook(zero_for_one, flashblock_index):
             return
