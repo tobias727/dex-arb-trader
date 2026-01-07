@@ -1,5 +1,7 @@
 import asyncio
 import websockets
+from websockets.exceptions import ConnectionClosedError
+
 from feeds.flashblock_feed import UnichainFlashFeed
 from feeds.binance_feed import BinanceDepthFeed
 
@@ -24,7 +26,7 @@ async def ws_reader(
             ) as ws:
                 async for raw_msg in ws:
                     await queue.put(raw_msg)
-        except ConnectionResetError:
+        except (ConnectionResetError, ConnectionClosedError):
             await asyncio.sleep(reconnect_delay)
 
 
