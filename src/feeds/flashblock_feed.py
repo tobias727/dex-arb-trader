@@ -222,6 +222,9 @@ class UnichainFlashFeed:
     def request_resync(self):
         """Request new snapshot"""
         self.snapshot_block_number = None
+        self.last_block = None
+        self.last_flashblock_index = None
+
         self.logger.warning("Detected diverging local state, resyncing...")
         asyncio.create_task(snapshot_once(self, self.logger))
 
