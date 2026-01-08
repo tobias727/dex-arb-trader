@@ -8,7 +8,7 @@ from config import (
     UNICHAIN_POOL_MANAGER,
     UNISWAP_POOL_ID,
 )
-from utils.initialize_uniswap_pool import snapshot_once
+from clients.uniswap.snapshot import snapshot_once
 from state.pool import Pool, Tick
 from state.flashblocks import FlashblockBuffer
 from engine.detector import ArbDetector

@@ -2,7 +2,7 @@ import asyncio
 from logging import Logger
 from web3 import AsyncWeb3
 
-from utils.web3_utils import connect_web3_async
+from infra.web3 import connect_web3_async
 from config import (
     UNISWAP_POOL_ID,
     TICK_BITMAP_HELPER_ADDRESS,

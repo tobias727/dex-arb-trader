@@ -1,14 +1,17 @@
 from datetime import datetime
+import time
+import os
+import csv
 from logging import Logger
 import asyncio
 from typing import Callable, Awaitable
+from decimal import Decimal, ROUND_DOWN
 
-from clients.binance_client import BinanceClient
-from clients.uniswap_client import UniswapClient
+from clients.binance.client import BinanceClient
+from clients.uniswap.client import UniswapClient
 from state.balances import Balances
 from state.flashblocks import FlashblockBuffer
-from utils.utils import calculate_pnl
-from utils.telegram_bot import TelegramBot
+from infra.monitoring import TelegramBot
 
 # key: flashblock index (last), value: MS Deadline to be included in flashblock (last) + 1
 MAX_MS_PER_INDEX = {
@@ -157,3 +160,65 @@ class Executor:
     def _current_ms_of_second() -> int:
         now = datetime.now()
         return now.microsecond // 1000
+
+    @staticmethod
+    def _calculate_pnl(response_binance, receipt_uniswap):
+        """Function to calculate PnL after execution"""
+        # use binance price for gas fee calculation in USDC for simplicity
+        eth_to_usdc_price = Decimal(response_binance["fills"][0]["price"])
+        # uniswap
+        uniswap_usdc_amount = Decimal("0")
+        for log in receipt_uniswap["logs"]:
+            if (
+                log["topics"][0].lower()
+                == "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+            ):  # Transfer(address,address,uint256)
+                uniswap_usdc_amount += Decimal(int(log["data"], 16)) / Decimal(
+                    "1000000"
+                )  # USDC 6 decimals
+        gas_fee_eth = (
+            Decimal(int(receipt_uniswap["gasUsed"], 16))
+            * Decimal(int(receipt_uniswap["effectiveGasPrice"], 16))
+            / Decimal(1e18)
+        )
+        gas_fee_usdc = gas_fee_eth * Decimal(eth_to_usdc_price)
+
+        # binance
+        binance_pnl = Decimal("0")
+        if response_binance["side"] == "BUY":
+            for fill in response_binance["fills"]:
+                price = Decimal(fill["price"])
+                qty = Decimal(fill["qty"])
+                commission = Decimal(fill["commission"])
+                # BUY: commission in ETH, convert to USDC
+                binance_pnl -= price * qty
+                binance_pnl -= commission * price
+        elif response_binance["side"] == "SELL":
+            for fill in response_binance["fills"]:
+                price = Decimal(fill["price"])
+                qty = Decimal(fill["qty"])
+                commission = Decimal(fill["commission"])
+                # SELL: commission in USDC
+                binance_pnl += price * qty
+                binance_pnl -= commission
+
+        # total
+        if response_binance["side"] == "BUY":
+            total_pnl = uniswap_usdc_amount + binance_pnl - gas_fee_usdc
+        else:  # b_side == "SELL"
+            total_pnl = binance_pnl - uniswap_usdc_amount - gas_fee_usdc
+        return total_pnl.quantize(Decimal("1e-6"), rounding=ROUND_DOWN)
+
+    @staticmethod
+    def append_trade_to_csv(filename, trade_data):
+        """Appends trades to csv file in out/, adds current CET timestamp"""
+        cet_time = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+        trade_data = {"timestamp": cet_time, **trade_data}
+        out_path = os.path.join("out", filename)
+        os.makedirs("out", exist_ok=True)
+        file_exists = os.path.isfile(out_path)
+        with open(out_path, mode="a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=trade_data.keys())
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(trade_data)

@@ -1,3 +1,5 @@
+import asyncio
+import aiohttp
 from telegram.ext import ApplicationBuilder
 from config import (
     TELEGRAM_TOKEN,
@@ -24,3 +26,24 @@ class TelegramBot:
         message = f"❌ Trading bot crashed!\n\nException: {e}"
         await self._send(message)
         self.application.stop_running()
+
+
+async def fetch_public_ip():
+    """Returns IP-Address to monitor for binance allowlist"""
+    async with aiohttp.ClientSession() as session:
+        async with session.get("https://api.ipify.org?format=json") as r:
+            data = await r.json()
+            return data["ip"]
+
+
+async def monitor_ip_change(logger, interval=300):
+    """Check if the IP address changed (last 5 minutes)"""
+    initial_ip = await fetch_public_ip()
+    logger.info(f"Initial IP: {initial_ip}")
+    while True:
+        await asyncio.sleep(interval)
+        current_ip = await fetch_public_ip()
+        if current_ip != initial_ip:
+            raise RuntimeError(
+                f"Public IP changed: {initial_ip} -> {current_ip}. Aborting for security."
+            )

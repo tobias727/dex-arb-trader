@@ -7,7 +7,7 @@ from eth_abi import encode
 from eth_abi.packed import encode_packed
 
 
-from utils.web3_utils import connect_web3, connect_web3_async
+from infra.web3 import connect_web3, connect_web3_async
 from config import (
     ERC20_ABI,
     TOKEN0_INPUT,

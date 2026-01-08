@@ -1,13 +1,13 @@
 import asyncio
 import logging
 
-from utils.telegram_bot import TelegramBot
-from utils.utils import monitor_ip_change
-from utils.initialize_uniswap_pool import snapshot_once
-from clients.binance_client import BinanceClient
-from clients.uniswap_client import UniswapClient
+from clients.binance.client import BinanceClient
+from clients.uniswap.client import UniswapClient
+from clients.uniswap.snapshot import snapshot_once
 from feeds.flashblock_feed import UnichainFlashFeed
 from feeds.binance_feed import BinanceDepthFeed
+from infra.monitoring import TelegramBot
+from infra.monitoring import monitor_ip_change
 from infra.ws import ws_reader, feed_loop
 from state.orderbook import OrderBook
 from state.pool import Pool
