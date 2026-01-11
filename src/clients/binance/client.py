@@ -31,9 +31,12 @@ class BinanceClient:
     async def keep_connection_hot(self, ping_interval: int = 30) -> None:
         """Sends HTTP request to keep TCP/TLS connection alive"""
         while True:
-            async with self.session.get("/api/v3/ping") as r:
-                await r.read()
-            await asyncio.sleep(ping_interval)
+            try:
+                async with self.session.get("/api/v3/ping") as r:
+                    await r.read()
+                await asyncio.sleep(ping_interval)
+            except aiohttp.ClientError:
+                await asyncio.sleep(5)
 
     async def get_balances(self) -> tuple:
         """Returns balances for USDC and ETH"""
