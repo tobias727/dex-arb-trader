@@ -8,6 +8,9 @@
 
 **Author: Tobias Zenner**
 
+I am the sole author of this repository; all code and architecture are my own work.
+
+
 **dex-arb-trader** is a live arbitrage trading engine between:
 - **CEX**: Binance (ETH/USDC, Spot, SBE WebSocket feed + REST trading)
 - **DEX**: Uniswap v4 pool on **Unichain mainnet** (ETH/USDC, 5bps pool)
