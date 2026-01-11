@@ -1,70 +1,142 @@
 [![linting: pylint](https://img.shields.io/badge/linting-pylint-yellowgreen)](https://github.com/pylint-dev/pylint)
 [![code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+![Python](https://img.shields.io/badge/python-3.12-blue.svg)
+![Smart contracts](https://img.shields.io/badge/smart%20contracts-Foundry-blueviolet)
+
 
 # DEX Arbitrage Trader
 
-DEX Arbitrage Trader is a Python (and future Rust) based automated trading framework designed for decentralized exchange (DEX) and centralized exchange (CEX) arbitrage opportunities.
+**Author: Tobias Zenner**
 
-## Setup and Usage
+**dex-arb-trader** is a live arbitrage trading engine between:
+- **CEX**: Binance (ETH/USDC, Spot, SBE WebSocket feed + REST trading)
+- **DEX**: Uniswap v4 pool on **Unichain mainnet** (ETH/USDC, 5bps pool)
 
-### Prerequisites
+It is built for low-latency, event-driven arbitrage with:
+- WebSocket market data (Binance SBE + Unichain flashblocks)
+- On-chain execution via eth_sendBundle to L2 sequencer
+- Binance execution via REST API with custom Binance TCP proxy
+- Production deployment on co-located AWS EC2 instances
+- Docker support
 
-Ensure Python (>= `3.12`) and `pip` are installed.
+## Table of Contents
+- [DEX Arbitrage Trader](#dex-arbitrage-trader)
+  - [Architecture](#architecture)
+  - [Project Structure](#project-structure)
+    - [Smart Contract](#smart-contract)
+    - [Trading Bot](#trading-bot)
+  - [Deployment](#deployment)
+  - [Latency & Measurements](#latency--measurements)
+  - [Strategy & Design Choices](#strategy--design-choices)
+  - [Next Steps](#next-steps)
+  - [Setup and Usage](#setup-and-usage)
 
-Run the following setup in a Linux/wsl environment.
+## Architecture
 
-### Setup
+```mermaid
+flowchart LR
 
-Copy the provided `.env.example` file to create your `.env` file and populate necessary values.
-```bash
-cp .env.example .env
+    subgraph main[dex-arb-trader]
+        B[feeds/<br/>binance_feed.py<br/>flashblock_feed.py] --> |on_flashblock_done| D[engine/detector.py]
+        S[state/<br/>orderbook.py<br/>pool.py<br/>balances.py<br/>flashblocks.py] --> D
+        B --> S
+        CU[clients/uniswap/snapshot.py] --> S
+        D --> E[engine/executor.py]
+        E --> |execute| C[clients/<br/>binance/client.py<br/>uniswap/client.py]
+        E --> |log| T[infra/monitoring.py]
+    end
+
+    P1[TCP Proxy] --> |WebSocket:SBE| B
+    B1[Binance OrderBook] -->  P1
+    B2[Unichain Flashblocks] --> |WebSocket| B
+    B3[Unichain RPC Node] --> |eth_call| CU
+
+    C --> |REST| P2[TCP Proxy]
+
+    P2 --> C1[Binance API]
+    C -->|Web3| C2[Unichain Sequencer]
 ```
 
-| Environment Variable   | Description                                               |
-|------------------------|-----------------------------------------------------------|
-| `BINANCE_API_KEY`      | API key for accessing Binance for trading or data.        |
-| `BINANCE_API_SECRET`   | Secret key for Binance API authentication.                |
-| `ALCHEMY_API_KEY`      | API key for interacting with Alchemy Ethereum services.   |
-| `ETHERSCAN_API_KEY`    | API key for accessing Etherscan for contract verification or data. |
-
-Next, setup a venv and install dependencies, using:
+## Project Structure
+dex-arb-trader is structured into two main components: the smart contract for tick bitmap management and the trading bot for arbitrage detection and execution.
+### Smart Contract
 ```
-python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
-```
-
-### Usage
-
-To stream Binance and Unichain data, use
-
-```
-./startDataStream.sh
+contracts/
+├── script/
+│   └── DeployTickBitmapHelper.s.sol        # Deployment scripts for TickBitmapHelper contract
+├── src/
+│   └── TickBitmapHelper.sol                # Smart contract for tick bitmap management
+└── test/
+   └── TickBitmapHelper.t.sol               # Test cases for TickBitmapHelper.sol
 ```
 
-To analyse price discrepancies use `notebooks/data-analysis.ipynb`.
+### Trading Bot
+```
+src/
+├── clients/
+│   ├── binance/
+│   │   └── client.py          # Binance REST client
+│   └── uniswap/
+│       └── client.py          # Uniswap v4 Web3 client
+├── engine/
+│   ├── detector.py            # Arbitrage detection logic
+│   └── executor.py            # Trade execution logic
+├── feeds/
+│   ├── binance_feed.py        # Binance SBE WebSocket feed handler
+│   └── flashblock_feed.py     # Unichain flashblock feed handler
+├── infra/
+│   └── monitoring.py          # Monitoring and logging utilities
+├── state/
+│   ├── orderbook.py           # Order book state management
+│   ├── pool.py                # Uniswap pool state management
+│   ├── balances.py            # Account balance tracking
+│   └── flashblocks.py         # Flashblock state management
+├── main.py                    # Main entry point
+└── config.py                  # Configuration management
+```
 
-## Configuration
+## Production Infrastructure
+- ec2 t3.nano instance in us-east-2 (Ohio): Main bot process `dex-arb-trader`
+- ec2 t3.nano instance in ap-northeast-1 (Tokio): Runs `nginx` as TCP Passthrough Proxy for Binance REST + WebSocket SBE
 
-Modify `values.yaml` to configure deployment.
+## Latency & Measurements
+Binance OrderBook -> TODO: add chart + measurements
 
-## Project Architecture
 
-- `binance/`: Contains APIs to connect with Binance for fetching order book data.
-- `unichain/`: Provides Uniswap V2 and V4 helper functions for interacting with liquidity pools.
-- `utils/`: Tools for retrieving smart contract ABIs.
-- `notebooks/`: Jupyter notebooks for data analysis.
+## Strategy & Design Choices
+- Instrument: ETHU/USDC on Binance Spot and Uniswap V4 Pool on Unichain (5 bps pool fee)
+- Edge calculation:
+    - each flashblock, calculate bid/ask using local pool state and binance order book state incl. fees
+    - trade volume is taking market impact and fees into account
+- Execution Sequence:
+    1. eth_sendBundle to Unichain with minAmountIn/minAmountOut = Binance Bid/Ask incl. fees
+    1. REST API to Binance **after** eth_sendBundle successful tx (TODO: add note why - very little slippage on Binance observed)
+- Risk management:
+    - Failed bundles are not executed on-chain and do not consume gas. Remaining risk is Binance slippage (ref. to note)
 
 ## Next Steps
+- Increase number of exchanges (CEX + DEX)
+- Support for multiple trading pairs
 
-Planned next steps are:
+## Setup and Usage
+Requirements:
+- Python >= `3.12`
+- pip3
+- Linux environment (or WSL on Windows)
 
-- Mid-cap token volatility analysis
-- Rust execution layer
-- Execution slippage modeling
-- On-chain simulation
+Populate the `.env` using template `.env.example`.
 
-
-## Deployment
-
+Setup a virtual environment using:
 ```
-docker build -t tobias875/dex-arb-trader:latest . && docker push tobias875/dex-arb-trader:latest
+python -m venv .venv
+```
+
+To start the bot, run:
+```
+./startTrading.sh
+```
+
+To build and push the Docker image, run:
+```
+./build.sh
 ```
