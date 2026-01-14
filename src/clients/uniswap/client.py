@@ -1,5 +1,4 @@
 import asyncio
-import time
 from web3.contract.contract import Contract
 from web3.types import TxReceipt
 from eth_account.types import TransactionDictType

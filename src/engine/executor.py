@@ -6,12 +6,18 @@ from logging import Logger
 import asyncio
 from typing import Callable, Awaitable
 from decimal import Decimal, ROUND_DOWN
+from web3.types import TxReceipt
+from web3.datastructures import AttributeDict
+from web3 import Web3
 
 from clients.binance.client import BinanceClient
 from clients.uniswap.client import UniswapClient
 from state.balances import Balances
 from state.flashblocks import FlashblockBuffer
 from infra.monitoring import TelegramBot
+from config import (
+    TOKEN1_DECIMALS,
+)
 
 # key: flashblock index (last), value: MS Deadline to be included in flashblock (last) + 1
 MAX_MS_PER_INDEX = {
@@ -20,6 +26,9 @@ MAX_MS_PER_INDEX = {
     3: 570,
     4: 950,
 }
+TOPIC_TRANSFER_EVENT = (
+    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+)
 
 FetchBalancesFn = Callable[[], Awaitable[None]]
 
@@ -114,12 +123,12 @@ class Executor:
             self.logger.warning(
                 "Post-execute status: flashblock not found for tx %s", tx_hash
             )
-        # pnl = calculate_pnl(
-        #     b_response,
-        #     u_receipt,
-        # )
-        # self.logger.info("Post-execute status: PnL: %s", pnl)
-        await self.telegram_bot.notify_executed("PNL_PLACEHOLDER")  # TODO: pnl
+        pnl = self.calculate_pnl(
+            b_response,
+            u_receipt,
+        )
+        self.logger.info("Post-execute status: PnL: %s", pnl)
+        await self.telegram_bot.notify_executed(pnl)
         await self.fetch_balances()
 
     def _pre_execute_hook(self, zero_for_one, flashblock_index):
@@ -162,52 +171,60 @@ class Executor:
         return now.microsecond // 1000
 
     @staticmethod
-    def _calculate_pnl(response_binance, receipt_uniswap):
-        """Function to calculate PnL after execution"""
-        # use binance price for gas fee calculation in USDC for simplicity
-        eth_to_usdc_price = Decimal(response_binance["fills"][0]["price"])
-        # uniswap
-        uniswap_usdc_amount = Decimal("0")
-        for log in receipt_uniswap["logs"]:
-            if (
-                log["topics"][0].lower()
-                == "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
-            ):  # Transfer(address,address,uint256)
-                uniswap_usdc_amount += Decimal(int(log["data"], 16)) / Decimal(
-                    "1000000"
-                )  # USDC 6 decimals
-        gas_fee_eth = (
-            Decimal(int(receipt_uniswap["gasUsed"], 16))
-            * Decimal(int(receipt_uniswap["effectiveGasPrice"], 16))
-            / Decimal(1e18)
-        )
-        gas_fee_usdc = gas_fee_eth * Decimal(eth_to_usdc_price)
+    def calculate_pnl(response_binance: dict, receipt_uniswap: TxReceipt) -> Decimal:
+        """Returns PnL in USDC"""
+        fill_price, qty, com = Executor._acc_fills(response_binance["fills"])
+        notional_price = fill_price * qty
+        transfer_out_amount = Executor._get_transfer_amount(receipt_uniswap)
+        u_fee_in_eth = Executor._get_transaction_costs(receipt_uniswap)
+        if response_binance["side"] == "SELL":
+            sell = notional_price
+            b_fee = com
+            buy = transfer_out_amount
+        else:  # Binance Side == "BUY":
+            sell = transfer_out_amount
+            b_fee = com * fill_price
+            buy = notional_price
+        u_fee = u_fee_in_eth * fill_price
+        total_fees = b_fee + u_fee
+        pnl = sell - (buy + total_fees)
+        return pnl
 
-        # binance
-        binance_pnl = Decimal("0")
-        if response_binance["side"] == "BUY":
-            for fill in response_binance["fills"]:
-                price = Decimal(fill["price"])
-                qty = Decimal(fill["qty"])
-                commission = Decimal(fill["commission"])
-                # BUY: commission in ETH, convert to USDC
-                binance_pnl -= price * qty
-                binance_pnl -= commission * price
-        elif response_binance["side"] == "SELL":
-            for fill in response_binance["fills"]:
-                price = Decimal(fill["price"])
-                qty = Decimal(fill["qty"])
-                commission = Decimal(fill["commission"])
-                # SELL: commission in USDC
-                binance_pnl += price * qty
-                binance_pnl -= commission
+    @staticmethod
+    def _acc_fills(fills):
+        total_notional = Decimal("0")
+        total_qty = Decimal("0")
+        total_commission = Decimal("0")
+        for fill in fills:
+            price = Decimal(fill["price"])
+            qty = Decimal(fill["qty"])
+            commission = Decimal(fill["commission"])
+            total_notional += price * qty
+            total_qty += qty
+            total_commission += commission
+        avg_price = total_notional / total_qty if total_qty else Decimal("0")
+        return avg_price, total_qty, total_commission
 
-        # total
-        if response_binance["side"] == "BUY":
-            total_pnl = uniswap_usdc_amount + binance_pnl - gas_fee_usdc
-        else:  # b_side == "SELL"
-            total_pnl = binance_pnl - uniswap_usdc_amount - gas_fee_usdc
-        return total_pnl.quantize(Decimal("1e-6"), rounding=ROUND_DOWN)
+    @staticmethod
+    def _get_transfer_amount(tx_receipt: TxReceipt) -> Decimal:
+        transfer_topic_log = Executor._extract_transfer_log(tx_receipt)
+        transfer_out_raw = int(transfer_topic_log.data.hex(), 16)
+        return transfer_out_raw / Decimal(f"1e{TOKEN1_DECIMALS}")
+
+    @staticmethod
+    def _extract_transfer_log(tx_receipt: TxReceipt) -> AttributeDict | None:
+        for log in tx_receipt["logs"]:
+            topics = log["topics"]
+            if "0x" + topics[0].hex() == TOPIC_TRANSFER_EVENT:
+                return log
+
+    @staticmethod
+    def _get_transaction_costs(tx_receipt: TxReceipt) -> Decimal:
+        gas_used = int(tx_receipt["gasUsed"])
+        effective_gas_price = int(tx_receipt["effectiveGasPrice"])
+        l1_fee = int(tx_receipt["l1Fee"], 16)
+        tx_cost_wei = gas_used * effective_gas_price + l1_fee
+        return Decimal(Web3.from_wei(tx_cost_wei, "ether"))
 
     @staticmethod
     def append_trade_to_csv(filename, trade_data):
