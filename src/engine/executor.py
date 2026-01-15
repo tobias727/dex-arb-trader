@@ -19,9 +19,6 @@ from config import (
     TOKEN1_DECIMALS,
 )
 
-TOPIC_TRANSFER_EVENT = (
-    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
-)
 
 FetchBalancesFn = Callable[[], Awaitable[None]]
 
@@ -222,7 +219,11 @@ class Executor:
     def _extract_transfer_log(tx_receipt: TxReceipt) -> AttributeDict | None:
         for log in tx_receipt["logs"]:
             topics = log["topics"]
-            if "0x" + topics[0].hex() == TOPIC_TRANSFER_EVENT:
+            # TOPIC_TRANSFER_EVENT
+            if (
+                "0x" + topics[0].hex()
+                == "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+            ):
                 return log
 
     @staticmethod
