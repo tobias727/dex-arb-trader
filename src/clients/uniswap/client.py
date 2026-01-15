@@ -1,6 +1,7 @@
 import asyncio
 from web3.contract.contract import Contract
 from web3.types import TxReceipt
+from web3.exceptions import Web3RPCError
 from eth_account.types import TransactionDictType
 from eth_abi import encode
 from eth_abi.packed import encode_packed
@@ -29,6 +30,7 @@ class UniswapClient:
 
     __slots__ = (
         "w3_seq",
+        "w3_alc",
         "nonce",
         "account",
         "universal_router_contract",
@@ -38,11 +40,11 @@ class UniswapClient:
         # sequencer session
         self.w3_seq = connect_web3_async(UNICHAIN_SEQUENCER_RPC_URL)
         # nonce, account
-        w3 = connect_web3(UNICHAIN_RPC_URL + ALCHEMY_API_KEY)
-        self.nonce = w3.eth.get_transaction_count(WALLET_ADDRESS, "pending")
-        self.account = w3.eth.account
+        self.w3_alc = connect_web3(UNICHAIN_RPC_URL + ALCHEMY_API_KEY)
+        self.nonce = self.w3_alc.eth.get_transaction_count(WALLET_ADDRESS, "pending")
+        self.account = self.w3_alc.eth.account
         # router contract
-        self.universal_router_contract = w3.eth.contract(
+        self.universal_router_contract = self.w3_alc.eth.contract(
             address=UNICHAIN_UNIVERSAL_ROUTER_ADDRESS, abi=UNIVERSAL_ROUTER_ABI
         )
 
@@ -52,29 +54,28 @@ class UniswapClient:
             # TODO: implement
             await asyncio.sleep(ping_interval)
 
-    async def execute_trade(
-        self, zero_for_one: bool, amount_token0: float
-    ) -> TxReceipt:
+    async def send_bundle(self, zero_for_one: bool, amount_token0: float) -> str:
         """Builds and broadcasts tx"""
         tx = self.build_tx(
             zero_for_one, self.universal_router_contract, self.nonce, amount_token0
         )
         signed_tx = self.account.sign_transaction(tx, PRIVATE_KEY)  # bottleneck: 4-8 ms
-        tx_hash = await self.w3_seq.eth.send_raw_transaction(signed_tx.raw_transaction)
-        receipt = await self.w3_seq.eth.wait_for_transaction_receipt(tx_hash)
+        raw_tx = signed_tx.rawTransaction.hex()
+        bundle_params = {"txs": [raw_tx]}  # default expire is 10 blocks
+        bundle_response = await self.w3_seq.manager.coro_request(
+            "eth_sendBundle", [bundle_params]
+        )
+        return bundle_response["bundleHash"]
 
-        # increase nonce
-        self.nonce += 1
-        assert receipt
-        return receipt
+    def fetch_receipt(self, tx_hash: str) -> TxReceipt:
+        """Returns tx receipt given hash"""
+        return self.w3_alc.eth.get_transaction_receipt(tx_hash)
 
-    @staticmethod
-    def get_balances() -> tuple[float, float]:
+    def get_balances(self) -> tuple[float, float]:
         """Returns balances for USDC and ETH"""
-        w3 = connect_web3(UNICHAIN_RPC_URL + ALCHEMY_API_KEY)
-        wei_eth = w3.eth.get_balance(WALLET_ADDRESS, "pending")
+        wei_eth = self.w3_alc.eth.get_balance(WALLET_ADDRESS, "pending")
         balance_eth = wei_eth / 1e18
-        usdc = w3.eth.contract(address=UNICHAIN_USDC, abi=ERC20_ABI)
+        usdc = self.w3_alc.eth.contract(address=UNICHAIN_USDC, abi=ERC20_ABI)
         raw_usdc = usdc.functions.balanceOf(WALLET_ADDRESS).call(
             block_identifier="pending"
         )

@@ -5,7 +5,7 @@ import csv
 from logging import Logger
 import asyncio
 from typing import Callable, Awaitable
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal
 from web3.types import TxReceipt
 from web3.datastructures import AttributeDict
 from web3 import Web3
@@ -19,13 +19,6 @@ from config import (
     TOKEN1_DECIMALS,
 )
 
-# key: flashblock index (last), value: MS Deadline to be included in flashblock (last) + 1
-MAX_MS_PER_INDEX = {
-    1: 80,
-    2: 350,
-    3: 570,
-    4: 950,
-}
 TOPIC_TRANSFER_EVENT = (
     "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 )
@@ -91,19 +84,43 @@ class Executor:
         await self._execute(zero_for_one, flashblock_index)
         self._exec_in_progress = False
 
-    async def _execute(self, zero_for_one, flashblock_index):
-        # pre-check
-        if not self._pre_execute_hook(zero_for_one, flashblock_index):
+    async def _execute(self, zero_for_one: bool, flashblock_index: int) -> None:
+        """Sequentially execute Uniswap/Binance legs"""
+        # pre-execution hook
+        if not self._pre_execute_hook(zero_for_one):
             return
-
-        # delegate execute to clients
         b_side = "BUY" if zero_for_one else "SELL"
-        b_coro = self.binance_client.execute_trade(b_side, 0.002)
-        u_coro = self.uniswap_client.execute_trade(zero_for_one, 0.002)
-        b_response, u_receipt = await asyncio.gather(b_coro, u_coro)
 
-        # post-check
+        # 1. Uniswap via eth_sendBundl + wait/check if included
+        u_bundle_hash = await self.uniswap_client.send_bundle(zero_for_one, 0.002)
+        executed = await self._wait_for_own_tx(
+            u_bundle_hash, 40
+        )  # 40 flashblocks >= 10 blocks
+        if not executed:
+            # missed opp
+            self.logger.warning("Tx not included: ")
+            return
+        self.uniswap_client.nonce += 1
+
+        # 2. Binance only when bundle was included
+        b_response = await self.binance_client.execute_trade(b_side, 0.002)
+
+        # post-execution hook
+        u_receipt = await asyncio.to_thread(
+            self.uniswap_client.fetch_receipt, u_bundle_hash
+        )
         await self._post_execute_hook(b_response, u_receipt)
+
+    async def _wait_for_own_tx(self, tx_hash: str, max_blocks: int) -> bool:
+        """
+        Subscriber to _new_block event in FlashblockBuffer
+        Returns 'True' if tx was executed and found in the buffer
+        """
+        for _ in range(max_blocks):
+            await self.flashblock_buffer.wait_for_new_block()
+            if self.flashblock_buffer.lookup(tx_hash) is not None:
+                return True
+        return False
 
     async def _post_execute_hook(self, b_response, u_receipt):
         """Refreshes balances"""
@@ -131,8 +148,8 @@ class Executor:
         await self.telegram_bot.notify_executed(pnl)
         await self.fetch_balances()
 
-    def _pre_execute_hook(self, zero_for_one, flashblock_index):
-        """Checks balances + flashblock timings"""
+    def _pre_execute_hook(self, zero_for_one: bool) -> bool:
+        """Checks balances"""
         # balances check
         b = self.balances
         if zero_for_one:
@@ -153,16 +170,6 @@ class Executor:
                     b.u_usdc,
                 )
                 return False
-
-        # flashblock checks
-        if flashblock_index == 0:
-            self.logger.warning("Pre-check: flashblock_index=0")
-            return False
-        limit = MAX_MS_PER_INDEX.get(flashblock_index)
-        ms = self._current_ms_of_second()
-        if ms > limit:
-            self.logger.warning("Pre-check: ms > limit, %s > %s", ms, limit)
-            return False
         return True
 
     @staticmethod
