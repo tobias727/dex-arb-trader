@@ -80,7 +80,8 @@ src/
 │   ├── binance/
 │   │   └── client.py          # Binance REST client
 │   └── uniswap/
-│       └── client.py          # Uniswap v4 Web3 client
+│       ├── client.py          # Uniswap v4 Web3 client
+│       └── snapshot.py        # Uniswap pool snapshot logic
 ├── engine/
 │   ├── detector.py            # Arbitrage detection logic
 │   └── executor.py            # Trade execution logic
@@ -88,12 +89,14 @@ src/
 │   ├── binance_feed.py        # Binance SBE WebSocket feed handler
 │   └── flashblock_feed.py     # Unichain flashblock feed handler
 ├── infra/
-│   └── monitoring.py          # Monitoring and logging utilities
+│   ├── monitoring.py          # Monitoring and logging utilities
+│   ├── web3.py                # Web3 connection management
+│   └── ws.py                  # WebSocket connection management
 ├── state/
-│   ├── orderbook.py           # Order book state management
-│   ├── pool.py                # Uniswap pool state management
 │   ├── balances.py            # Account balance tracking
-│   └── flashblocks.py         # Flashblock state management
+│   ├── flashblocks.py         # Flashblock state management
+│   ├── orderbook.py           # Order book state management
+│   └── pool.py                # Uniswap pool state management
 ├── main.py                    # Main entry point
 └── config.py                  # Configuration management
 ```
@@ -116,6 +119,7 @@ Binance OrderBook -> TODO: add chart + measurements
     1. REST API to Binance **after** eth_sendBundle successful tx (TODO: add note why - very little slippage on Binance observed)
 - Risk management:
     - Failed bundles are not executed on-chain and do not consume gas. Remaining risk is Binance slippage (ref. to note)
+    - Slippage in Binance was found to be positive compared to setup with parallel execution on average
 
 ## Next Steps
 - Increase number of exchanges (CEX + DEX)
