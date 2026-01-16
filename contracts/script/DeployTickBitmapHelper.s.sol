@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "forge-std/Script.sol";
-import "../src/TickBitmapHelper.sol";
+import {Script} from "forge-std/Script.sol";
+import {console2} from "forge-std/console2.sol";
+import {TickBitmapHelper} from "../src/TickBitmapHelper.sol";
 
 contract DeployTickBitmapHelper is Script {
     function run() external {

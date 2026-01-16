@@ -46,6 +46,7 @@ contract TickBitmapHelper {
         int256 diff = int256(endWord) - int256(startWord) + 1;
         require(diff > 0, "invalid diff");
 
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint256 len = uint256(diff);
         bitmaps = new uint256[](len);
 
