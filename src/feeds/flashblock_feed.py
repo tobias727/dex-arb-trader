@@ -90,7 +90,7 @@ class UnichainFlashFeed:
             return
         self._process_block(payload, block_number, index)
 
-    def _process_block(self, payload, block_number, index) -> None:
+    def _process_block(self, payload, block_number: int, index: int) -> None:
         """Filters a block's transactions and applies relevant events."""
         receipts = payload.get("metadata", {}).get("receipts", {})
         if not receipts:
@@ -191,7 +191,7 @@ class UnichainFlashFeed:
             self.last_flashblock_index = index
             return
 
-        # 0 = new block, 1-4 = flashblocks
+        # 0 = new block, 1-5 = flashblocks
         if index != 0:
             if index != self.last_flashblock_index + 1:
                 self.logger.warning(

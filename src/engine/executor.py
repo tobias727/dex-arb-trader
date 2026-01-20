@@ -35,6 +35,7 @@ class Executor:
         "flashblock_buffer",
         "_exec_in_progress",
         "telegram_bot",
+        "fatal_error_future",
     )
 
     def __init__(
@@ -46,6 +47,7 @@ class Executor:
         uniswap_client: UniswapClient,
         flashblock_buffer: FlashblockBuffer,
         telegram_bot: TelegramBot,
+        fatal_error_future: asyncio.Future | None = None,
     ):
         self.balances = balances
         self.logger = logger
@@ -54,9 +56,10 @@ class Executor:
         self.uniswap_client = uniswap_client
         self.flashblock_buffer = flashblock_buffer
         self.telegram_bot = telegram_bot
+        self.fatal_error_future = fatal_error_future
         self._exec_in_progress = False
 
-    def execute_b_sell_u_buy(self, dy_in, flashblock_index):
+    def execute_b_sell_u_buy(self, dy_in, flashblock_index: int):
         """Delegates execution given dy_in (USDC)"""
         if self._exec_in_progress:
             self.logger.warning(
@@ -64,7 +67,8 @@ class Executor:
                 flashblock_index,
             )
             return
-        asyncio.create_task(self._guarded_execute(False, flashblock_index))
+        task = asyncio.create_task(self._guarded_execute(False, flashblock_index))
+        task.add_done_callback(self._handle_exec_task_done)
 
     def execute_b_buy_u_sell(self, dx_in, flashblock_index):
         """Delegates execution given dx_in (ETH)"""
@@ -74,7 +78,8 @@ class Executor:
                 flashblock_index,
             )
             return
-        asyncio.create_task(self._guarded_execute(True, flashblock_index))
+        task = asyncio.create_task(self._guarded_execute(True, flashblock_index))
+        task.add_done_callback(self._handle_exec_task_done)
 
     async def _guarded_execute(self, zero_for_one: bool, flashblock_index: int):
         self._exec_in_progress = True
@@ -88,11 +93,11 @@ class Executor:
             return
         b_side = "BUY" if zero_for_one else "SELL"
 
-        # 1. Uniswap via eth_sendBundl + wait/check if included
+        # 1. Uniswap via eth_sendBundle + wait/check if included
         u_bundle_hash = await self.uniswap_client.send_bundle(zero_for_one, 0.002)
         executed = await self._wait_for_own_tx(
-            u_bundle_hash, 40
-        )  # 40 flashblocks >= 10 blocks
+            u_bundle_hash, 50
+        )  # 50 flashblocks >= 10 blocks
         if not executed:
             # missed opp
             self.logger.warning("Tx not included: ")
@@ -119,7 +124,7 @@ class Executor:
                 return True
         return False
 
-    async def _post_execute_hook(self, b_response, u_receipt):
+    async def _post_execute_hook(self, b_response: dict, u_receipt: TxReceipt):
         """Refreshes balances"""
         tx_hash_raw = u_receipt.get("transactionHash")
         tx_hash = "0x" + tx_hash_raw.hex()
@@ -169,6 +174,12 @@ class Executor:
                 return False
         return True
 
+    def _handle_exec_task_done(self, task: asyncio.Task):
+        exc = task.exception()
+        if exc:
+            self.logger.error("Error during execution", exc_info=exc)
+            self.fatal_error_future.set_exception(exc)
+
     @staticmethod
     def _current_ms_of_second() -> int:
         now = datetime.now()
@@ -195,7 +206,7 @@ class Executor:
         return pnl
 
     @staticmethod
-    def _acc_fills(fills):
+    def _acc_fills(fills: dict) -> tuple[Decimal, Decimal, Decimal]:
         total_notional = Decimal("0")
         total_qty = Decimal("0")
         total_commission = Decimal("0")

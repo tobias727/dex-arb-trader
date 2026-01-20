@@ -45,6 +45,9 @@ async def fetch_balances(
 
 async def main(telegram_bot: TelegramBot):
     """Entrypoint"""
+    loop = asyncio.get_running_loop()
+    fatal_error = loop.create_future()
+
     # state
     pool = Pool()
     orderbook = OrderBook()
@@ -64,6 +67,7 @@ async def main(telegram_bot: TelegramBot):
         uniswap_client,
         flashblock_buffer,
         telegram_bot,
+        fatal_error,
     )
     detector = ArbDetector(pool, orderbook, executor, logger)
 
@@ -89,6 +93,7 @@ async def main(telegram_bot: TelegramBot):
         feed_loop(b_queue, b_feed),
         binance_client.keep_connection_hot(ping_interval=30),
         monitor_ip_change(logger),
+        fatal_error,
     )
 
 
