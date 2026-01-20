@@ -28,7 +28,7 @@ class BinanceClient:
             headers={"X-MBX-APIKEY": BINANCE_API_KEY},
         )
 
-    async def keep_connection_hot(self, ping_interval: int = 30) -> None:
+    async def keep_connection_hot(self, ping_interval: int = 10) -> None:
         """Sends HTTP request to keep TCP/TLS connection alive"""
         while True:
             try:
