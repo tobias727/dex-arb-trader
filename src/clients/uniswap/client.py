@@ -60,7 +60,7 @@ class UniswapClient:
             zero_for_one, self.universal_router_contract, self.nonce, amount_token0
         )
         signed_tx = self.account.sign_transaction(tx, PRIVATE_KEY)  # bottleneck: 4-8 ms
-        raw_tx = signed_tx.raw_transaction.hex()
+        raw_tx = "0x" + signed_tx.raw_transaction.hex()
         bundle_params = {"txs": [raw_tx]}  # default expire is 10 blocks
         bundle_response = await self.w3_seq.manager.coro_request(
             "eth_sendBundle", [bundle_params]
