@@ -93,19 +93,16 @@ class UnichainFlashFeed:
     def _process_block(self, payload: dict, block_number: int, index: int) -> None:
         """Filters a block's transactions and applies relevant events."""
         receipts = payload.get("metadata", {}).get("receipts", {})
-        if not receipts:
-            return
         swap_tx_hashes: list[str] = []
 
-        for tx_hash, receipt in receipts.items():
-            _tx_type, tx_data = next(iter(receipt.items()))
+        for tx_hash, tx_data in receipts.items():
             if not isinstance(tx_data, dict):
                 self.logger.warning(
                     "Unexpected tx_data type in _process_block: %s (%r)",
                     type(tx_data),
                     tx_data,
                 )
-                return
+                continue
 
             if tx_data.get("status") != "0x1":
                 continue
@@ -119,11 +116,12 @@ class UnichainFlashFeed:
                 address = log.get("address", "").lower()
                 if address != pool_manager:
                     continue
-
-                data = log.get("data", "")
-                topics = log.get("topics", [])
-                if self._process_event(data, topics):
+                topics = log.get("topics")
+                if not topics:
+                    continue
+                if self._process_event(log.get("data", ""), topics):
                     swap_in_tx = True
+                    break
 
             if swap_in_tx:
                 swap_tx_hashes.append(tx_hash)
