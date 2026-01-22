@@ -92,44 +92,47 @@ class UnichainFlashFeed:
 
     def _process_block(self, payload: dict, block_number: int, index: int) -> None:
         """Filters a block's transactions and applies relevant events."""
-        receipts = payload.get("metadata", {}).get("receipts", {})
-        swap_tx_hashes: list[str] = []
+        try:
+            receipts = payload.get("metadata", {}).get("receipts", {})
+            swap_tx_hashes: list[str] = []
 
-        for tx_hash, tx_data in receipts.items():
-            if not isinstance(tx_data, dict):
-                self.logger.warning(
-                    "Unexpected tx_data type in _process_block: %s (%r)",
-                    type(tx_data),
-                    tx_data,
-                )
-                continue
+            for tx_hash, receipt in receipts.items():
+                ((_tx_type, tx_data),) = receipt.items()  # only one tx_type per receipt
 
-            if tx_data.get("status") != "0x1":
-                continue
-
-            logs = tx_data.get("logs", [])
-            if not logs:
-                continue
-
-            swap_in_tx = False
-            for log in logs:
-                address = log.get("address", "").lower()
-                if address != pool_manager:
+                if tx_data.get("status") != "0x1":
                     continue
-                topics = log.get("topics")
-                if not topics:
+
+                logs = tx_data.get("logs", [])
+                if not logs:
                     continue
-                if self._process_event(log.get("data", ""), topics):
-                    swap_in_tx = True
-                    break
 
-            if swap_in_tx:
-                swap_tx_hashes.append(tx_hash)
+                swap_in_tx = False
+                for log in logs:
+                    address = log.get("address", "").lower()
+                    if address != pool_manager:
+                        continue
+                    topics = log.get("topics")
+                    if not topics:
+                        continue
+                    if self._process_event(log.get("data", ""), topics):
+                        swap_in_tx = True
+                        break
 
-        if swap_tx_hashes:
-            self.flashblock_buffer.add_block(block_number, index, swap_tx_hashes)
+                if swap_in_tx:
+                    swap_tx_hashes.append(tx_hash)
 
-        self.on_flashblock_done(block_number, index)
+            if swap_tx_hashes:
+                self.flashblock_buffer.add_block(block_number, index, swap_tx_hashes)
+
+            self.on_flashblock_done(block_number, index)
+        except Exception:
+            self.logger.exception(
+                "Error in _process_block for #%s-%s, payload=%r",
+                block_number,
+                index,
+                payload,
+            )
+            raise
 
     def _process_event(self, data: tuple, topics: list) -> bool:
         """
