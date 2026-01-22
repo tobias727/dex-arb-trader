@@ -99,6 +99,14 @@ class UnichainFlashFeed:
 
         for tx_hash, receipt in receipts.items():
             _tx_type, tx_data = next(iter(receipt.items()))
+            if not isinstance(tx_data, dict):
+                self.logger.warning(
+                    "Unexpected tx_data type in _process_block: %s (%r)",
+                    type(tx_data),
+                    tx_data,
+                )
+                return
+
             if tx_data.get("status") != "0x1":
                 continue
 
