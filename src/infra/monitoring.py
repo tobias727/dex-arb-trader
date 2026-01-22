@@ -1,3 +1,5 @@
+import os
+import csv
 import asyncio
 import aiohttp
 from telegram.ext import ApplicationBuilder
@@ -47,3 +49,15 @@ async def monitor_ip_change(logger, interval=300):
             raise RuntimeError(
                 f"Public IP changed: {initial_ip} -> {current_ip}. Aborting for security."
             )
+
+
+def append_row_to_csv(filename: str, row: dict) -> None:
+    """Appends trades to csv file in out/, adds current CET timestamp"""
+    out_path = os.path.join("out", filename)
+    os.makedirs("out", exist_ok=True)
+    file_exists = os.path.isfile(out_path)
+    with open(out_path, mode="a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=row.keys())
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(row)

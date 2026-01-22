@@ -39,6 +39,18 @@ class FlashblockBuffer:
         # publisher
         self._new_block.set()
 
+    def get_block(self, block_number: int, index: int) -> Optional[Flashblock]:
+        """Returns 'Flashblock' given (block_number, index)"""
+        for fb in self._blocks:
+            if fb.block_number == block_number and fb.index == index:
+                return fb
+        return None
+
+    def get_tx_hashes(self, block_number: int, index: int) -> list[str]:
+        """Returns all tx_hashes given (block_number, index)"""
+        fb = self.get_block(block_number, index)
+        return fb.tx_hashes if fb is not None else []
+
     def lookup(self, tx_hash: str) -> Optional[Tuple[int, int]]:
         """Returns (block_number, index) for given tx_hash"""
         return self._by_tx.get(tx_hash)

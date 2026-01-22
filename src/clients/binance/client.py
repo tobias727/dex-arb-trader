@@ -20,7 +20,9 @@ class BinanceClient:
         ssl_context = (
             ssl._create_unverified_context()
         )  # TODO: ssl.create_default_context()
-        connector = aiohttp.TCPConnector(ssl=ssl_context, keepalive_timeout=3600*24*30)  # 30 days
+        connector = aiohttp.TCPConnector(
+            ssl=ssl_context, keepalive_timeout=3600 * 24 * 30
+        )  # 30 days
         self.session = aiohttp.ClientSession(
             base_url=BINANCE_URI_REST,
             connector=connector,

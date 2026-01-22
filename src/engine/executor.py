@@ -1,7 +1,4 @@
 from datetime import datetime
-import time
-import os
-import csv
 from logging import Logger
 import asyncio
 from typing import Callable, Awaitable
@@ -14,7 +11,7 @@ from clients.binance.client import BinanceClient
 from clients.uniswap.client import UniswapClient
 from state.balances import Balances
 from state.flashblocks import FlashblockBuffer
-from infra.monitoring import TelegramBot
+from infra.monitoring import TelegramBot, append_row_to_csv
 from config import (
     TOKEN1_DECIMALS,
 )
@@ -81,7 +78,7 @@ class Executor:
         task = asyncio.create_task(self._guarded_execute(True, flashblock_index))
         task.add_done_callback(self._handle_exec_task_done)
 
-    async def _guarded_execute(self, zero_for_one: bool, flashblock_index: int):
+    async def _guarded_execute(self, zero_for_one: bool, flashblock_index: int) -> None:
         self._exec_in_progress = True
         await self._execute(zero_for_one, flashblock_index)
         self._exec_in_progress = False
@@ -124,10 +121,14 @@ class Executor:
                 return True
         return False
 
-    async def _post_execute_hook(self, b_response: dict, u_receipt: TxReceipt):
+    async def _post_execute_hook(self, b_response: dict, u_receipt: TxReceipt) -> None:
         """Refreshes balances"""
         tx_hash_raw = u_receipt.get("transactionHash")
         tx_hash = "0x" + tx_hash_raw.hex()
+
+        block_number = None
+        index = None
+
         fb_info = self.flashblock_buffer.lookup(tx_hash)
         if fb_info is not None:
             block_number, index = fb_info
@@ -147,6 +148,18 @@ class Executor:
             u_receipt,
         )
         self.logger.info("Post-execute status: PnL: %s", pnl)
+        all_tx_hashes_in_fb = self.flashblock_buffer.get_tx_hashes(block_number, index)
+        append_row_to_csv(
+            "executions.csv",
+            {
+                "block": block_number,
+                "fb_index": index,
+                "pnl": pnl,
+                "tx_hashes": all_tx_hashes_in_fb,
+                "b_side": b_response.get("side"),
+                "u_tx_hash": tx_hash,
+            },
+        )
         await self.telegram_bot.notify_executed(pnl)
         await self.fetch_balances()
 
@@ -244,17 +257,3 @@ class Executor:
         l1_fee = int(tx_receipt["l1Fee"], 16)
         tx_cost_wei = gas_used * effective_gas_price + l1_fee
         return Decimal(Web3.from_wei(tx_cost_wei, "ether"))
-
-    @staticmethod
-    def append_trade_to_csv(filename, trade_data):
-        """Appends trades to csv file in out/, adds current CET timestamp"""
-        cet_time = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
-        trade_data = {"timestamp": cet_time, **trade_data}
-        out_path = os.path.join("out", filename)
-        os.makedirs("out", exist_ok=True)
-        file_exists = os.path.isfile(out_path)
-        with open(out_path, mode="a", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=trade_data.keys())
-            if not file_exists:
-                writer.writeheader()
-            writer.writerow(trade_data)

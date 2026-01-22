@@ -2,6 +2,7 @@ from logging import Logger
 from state.pool import Pool
 from state.orderbook import OrderBook
 from engine.executor import Executor
+from infra.monitoring import append_row_to_csv
 from config import (
     BINANCE_FEE,
 )
@@ -69,26 +70,42 @@ class ArbDetector:
             # Binance SELL, Uniswap BUY
             dy_in = self._calc_amount1_with_fee(u_L, b_bid_sqrt_x96, u_sqrt_price_x96)
             self.executor.execute_b_sell_u_buy(dy_in, index)
-
-            ##
-            edge_abs = eff_b_sell - u_ask
-            self.logger.warning(
+            edge = eff_b_sell - u_ask
+            self.logger.info(
                 "[B sell / U buy] edge: %.6f USDC/ETH, amount1_in: %.3f USDC",
-                edge_abs,
+                edge,
                 dy_in / 1e6,
+            )
+            append_row_to_csv(
+                "edges.csv",
+                {
+                    "block": block_number,
+                    "fb_index": index,
+                    "b_side": "SELL",
+                    "edge": edge,
+                    "d_in": dy_in / 1e6,
+                },
             )
 
         elif eff_b_buy < u_bid:
             # Binance BUY, Uniswap Sell
             dx_in = self._calc_amount0_with_fee(u_L, b_ask_sqrt_x96, u_sqrt_price_x96)
             self.executor.execute_b_buy_u_sell(dx_in, index)
-
-            ##
-            edge_abs = u_bid - eff_b_buy
-            self.logger.warning(
+            edge = u_bid - eff_b_buy
+            self.logger.info(
                 "[B buy / U sell] edge: %.6f USDC/ETH, amount0_in: %.6f ETH",
-                edge_abs,
+                edge,
                 dx_in / 1e18,
+            )
+            append_row_to_csv(
+                "edges.csv",
+                {
+                    "block": block_number,
+                    "fb_index": index,
+                    "b_side": "BUY",
+                    "edge": edge,
+                    "d_in": dx_in / 1e18,
+                },
             )
 
         self.logger.info(

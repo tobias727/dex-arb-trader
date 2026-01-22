@@ -59,7 +59,7 @@ class UnichainFlashFeed:
         self.last_block: int | None = None
         self.last_flashblock_index: int | None = None
 
-    def create_snapshot(self, ticks_raw, snapshot_block_number):
+    def create_snapshot(self, ticks_raw, snapshot_block_number: int):
         """Loads snapshot + set block number"""
         self.pool.load_ticks(ticks_raw)
         self.set_snapshot_block(snapshot_block_number)
@@ -90,39 +90,53 @@ class UnichainFlashFeed:
             return
         self._process_block(payload, block_number, index)
 
-    def _process_block(self, payload, block_number: int, index: int) -> None:
+    def _process_block(self, payload: dict, block_number: int, index: int) -> None:
         """Filters a block's transactions and applies relevant events."""
         receipts = payload.get("metadata", {}).get("receipts", {})
         if not receipts:
             return
-        tx_hashes: list[str] = []
+        swap_tx_hashes: list[str] = []
+
         for tx_hash, receipt in receipts.items():
             _tx_type, tx_data = next(iter(receipt.items()))
             if tx_data.get("status") != "0x1":
                 continue
-            tx_hashes.append(tx_hash)
+
             logs = tx_data.get("logs", [])
             if not logs:
                 continue
+
+            swap_in_tx = False
             for log in logs:
                 address = log.get("address", "").lower()
                 if address != pool_manager:
                     continue
+
                 data = log.get("data", "")
                 topics = log.get("topics", [])
-                self._process_event(data, topics)
-        if tx_hashes:
-            self.flashblock_buffer.add_block(block_number, index, tx_hashes)
+                if self._process_event(data, topics):
+                    swap_in_tx = True
+
+            if swap_in_tx:
+                swap_tx_hashes.append(tx_hash)
+
+        if swap_tx_hashes:
+            self.flashblock_buffer.add_block(block_number, index, swap_tx_hashes)
+
         self.on_flashblock_done(block_number, index)
 
-    def _process_event(self, data: tuple, topics: list) -> None:
-        """Applies a single event to the pool state."""
+    def _process_event(self, data: tuple, topics: list) -> bool:
+        """
+        Applies a single event to the pool state.
+        Returns 'True' for Swap Topic, 'False' otherwise
+        """
         if topics[0] == SWAP_TOPIC and topics[1] == pool_id:
             # SWAP event
             _amount0, _amount1, sqrt_price_x96, liquidity, tick, _fee = (
                 self.decode_swap(data)
             )
             self._process_swap_event(sqrt_price_x96, liquidity, tick)
+            return True
 
         elif topics[0] == MODIFY_LIQ_TOPIC and topics[1] == pool_id:
             # MODIFY_LIQUIDITY event
@@ -130,12 +144,16 @@ class UnichainFlashFeed:
                 data
             )
             self._process_modify_liquidity_event(tick_lower, tick_upper, liq_delta)
+            return False
 
         elif topics[0] == DONATE_TOPIC and topics[1] == pool_id:
             # DONATE event
             self.logger.warning("DONATE event - not implemented")
             # not implemented, resync state
             self.request_resync()
+            return False
+
+        return False
 
     def _process_swap_event(self, sqrt_price_x96, liquidity, tick):
         """Updates pool state after Swap event"""
