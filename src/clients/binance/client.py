@@ -40,6 +40,10 @@ class BinanceClient:
             except aiohttp.ClientError:
                 await asyncio.sleep(5)
 
+    async def close(self) -> None:
+        """Closes connection"""
+        await self.session.close()
+
     async def get_balances(self) -> tuple:
         """Returns balances for USDC and ETH"""
         params = {"timestamp": int(time.time() * 1000)}

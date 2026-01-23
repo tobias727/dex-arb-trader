@@ -81,7 +81,7 @@ async def main(telegram_bot: TelegramBot):
     b_url = f"{BINANCE_URI_SBE}/ws/ethusdc@bestBidAsk"
     b_headers = [("X-MBX-APIKEY", BINANCE_API_KEY_ED25519)]
 
-    await asyncio.gather(
+    tasks = [
         fetch_balances(balances, binance_client, uniswap_client),
         # Unichain
         ws_reader(UNICHAIN_FLASHBLOCKS_WS_URL, u_queue),
@@ -94,7 +94,12 @@ async def main(telegram_bot: TelegramBot):
         binance_client.keep_connection_hot(ping_interval=30),
         monitor_ip_change(logger),
         fatal_error,
-    )
+    ]
+
+    try:
+        await asyncio.gather(*tasks)
+    finally:
+        await binance_client.close()
 
 
 async def entry():
