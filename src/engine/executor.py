@@ -56,34 +56,44 @@ class Executor:
         self.fatal_error_future = fatal_error_future
         self._exec_in_progress = False
 
-    def execute_b_sell_u_buy(self, dy_in, flashblock_index: int):
+    def execute_b_sell_u_buy(self, dy_in, detected_block: int, detected_fb_index: int):
         """Delegates execution given dy_in (USDC)"""
         if self._exec_in_progress:
             self.logger.warning(
-                "Execution skipped: post_execute_hook still running (b_sell_u_buy, flashblock_index=%s)",
-                flashblock_index,
+                "Execution skipped: post_execute_hook still running (b_sell_u_buy, block #%s-%s)",
+                detected_block,
+                detected_fb_index,
             )
             return
-        task = asyncio.create_task(self._guarded_execute(False, flashblock_index))
+        task = asyncio.create_task(
+            self._guarded_execute(False, detected_block, detected_fb_index)
+        )
         task.add_done_callback(self._handle_exec_task_done)
 
-    def execute_b_buy_u_sell(self, dx_in, flashblock_index):
+    def execute_b_buy_u_sell(self, dx_in, detected_block: int, detected_fb_index: int):
         """Delegates execution given dx_in (ETH)"""
         if self._exec_in_progress:
             self.logger.warning(
-                "Execution skipped: post_execute_hook still running (b_buy_u_sell, flashblock_index=%s)",
-                flashblock_index,
+                "Execution skipped: post_execute_hook still running (b_buy_u_sell, block #%s-%s)",
+                detected_block,
+                detected_fb_index,
             )
             return
-        task = asyncio.create_task(self._guarded_execute(True, flashblock_index))
+        task = asyncio.create_task(
+            self._guarded_execute(True, detected_block, detected_fb_index)
+        )
         task.add_done_callback(self._handle_exec_task_done)
 
-    async def _guarded_execute(self, zero_for_one: bool, flashblock_index: int) -> None:
+    async def _guarded_execute(
+        self, zero_for_one: bool, detected_block: int, detected_fb_index: int
+    ) -> None:
         self._exec_in_progress = True
-        await self._execute(zero_for_one, flashblock_index)
+        await self._execute(zero_for_one, detected_block, detected_fb_index)
         self._exec_in_progress = False
 
-    async def _execute(self, zero_for_one: bool, flashblock_index: int) -> None:
+    async def _execute(
+        self, zero_for_one: bool, detected_block: int, detected_fb_index: int
+    ) -> None:
         """Sequentially execute Uniswap/Binance legs"""
         # pre-execution hook
         if not self._pre_execute_hook(zero_for_one):
@@ -108,7 +118,9 @@ class Executor:
         u_receipt = await asyncio.to_thread(
             self.uniswap_client.fetch_receipt, u_bundle_hash
         )
-        await self._post_execute_hook(b_response, u_receipt)
+        await self._post_execute_hook(
+            b_response, u_receipt, detected_block, detected_fb_index
+        )
 
     async def _wait_for_own_tx(self, tx_hash: str, max_blocks: int) -> bool:
         """
@@ -121,7 +133,13 @@ class Executor:
                 return True
         return False
 
-    async def _post_execute_hook(self, b_response: dict, u_receipt: TxReceipt) -> None:
+    async def _post_execute_hook(
+        self,
+        b_response: dict,
+        u_receipt: TxReceipt,
+        detected_block: int,
+        detected_fb_index: int,
+    ) -> None:
         """Refreshes balances"""
         tx_hash_raw = u_receipt.get("transactionHash")
         tx_hash = "0x" + tx_hash_raw.hex()
@@ -152,6 +170,8 @@ class Executor:
         append_row_to_csv(
             "executions.csv",
             {
+                "detected_block": detected_block,
+                "detected_fb_index": detected_fb_index,
                 "block": block_number,
                 "fb_index": index,
                 "pnl": pnl,

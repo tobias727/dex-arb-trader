@@ -86,7 +86,7 @@ class ArbDetector:
             p_t_sqrt_x96 = self._price_to_sqrt_x96(p_t)
             dy_in = self._calc_amount1_with_fee(u_L, p_t_sqrt_x96, u_sqrt_price_x96)
 
-            self.executor.execute_b_sell_u_buy(dy_in, index)
+            self.executor.execute_b_sell_u_buy(dy_in, block_number, index)
             self.logger.info(
                 "[B sell / U buy] edge: %.6f USDC/ETH, amount1_in: %.3f USDC",
                 sell_edge,
@@ -110,7 +110,7 @@ class ArbDetector:
             p_t_sqrt_x96 = self._price_to_sqrt_x96(p_t)
             dx_in = self._calc_amount0_with_fee(u_L, p_t_sqrt_x96, u_sqrt_price_x96)
 
-            self.executor.execute_b_buy_u_sell(dx_in, index)
+            self.executor.execute_b_buy_u_sell(dx_in, block_number, index)
             self.logger.info(
                 "[B buy / U sell] edge: %.6f USDC/ETH, amount0_in: %.6f ETH",
                 buy_edge,
