@@ -1,5 +1,4 @@
 import struct
-import math
 from state.orderbook import OrderBook
 
 
@@ -26,8 +25,6 @@ class BinanceDepthFeed:
         """Process a raw message from main.feed_loop and updates order book"""
         ob = self.orderbook
         (
-            ob.bid_sqrt_x96,
-            ob.ask_sqrt_x96,
             ob.bid_price,
             ob.ask_price,
             ob.bid_qty,
@@ -55,17 +52,11 @@ class BinanceDepthFeed:
         qty_factor = 10.0**qty_exp
 
         # price
-        bid_price_h = bid_mantissa * price_factor
-        ask_price_h = ask_mantissa * price_factor
-
-        bid_raw = bid_price_h / SCALE
-        ask_raw = ask_price_h / SCALE
-
-        bid_sqrt_x96 = int(math.sqrt(bid_raw) * Q96)
-        ask_sqrt_x96 = int(math.sqrt(ask_raw) * Q96)
+        bid_price = bid_mantissa * price_factor
+        ask_price = ask_mantissa * price_factor
 
         # qty
         bid_qty = bid_qty_mantissa * qty_factor
         ask_qty = ask_qty_mantissa * qty_factor
 
-        return bid_sqrt_x96, ask_sqrt_x96, bid_price_h, ask_price_h, bid_qty, ask_qty
+        return bid_price, ask_price, bid_qty, ask_qty

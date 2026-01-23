@@ -3,7 +3,7 @@ execution:
   token0_input: 0.0020 # ETH
   token0_decimals: 18
   token1_decimals: 6
-  binance_fee: 0.00095 # https://www.binance.com/en/fee/trading
+  binance_fee: 0.0007125 # BNB USDC Taker # https://www.binance.com/en/fee/trading
   # binance_min_qty: 0.0001
   # binance_step_size: 0.0001
   # binance_min_notional: 5.0
