@@ -122,8 +122,13 @@ Binance OrderBook -> TODO: add chart + measurements
     - Slippage in Binance was found to be positive compared to setup with parallel execution on average
 
 ## Next Steps
+- Calculate L for dx_in and dy_in using tick Bitmap (currently assuming even liquidity within tick range of swap)
+- Change detection logic to trigger re-calculation when Binance price changes within a flashblock
 - Increase number of exchanges (CEX + DEX)
 - Support for multiple trading pairs
+
+## Known Issues
+- Currently, the local state is replicated using pre-confirmed flashblocks from the sequencer. Flashblocks are streamed directy from the sequencer to allow next-flashblock arbitrage. This can lead to inconsistent local state however, such as block [38620834](https://uniscan.xyz/txs?block=38620834). Better would be to additionally verify local state using canonical RPC calls periodically, e.g. every block. This is accepted at this stage as the risk is quite low with eth_sendBundle failing on inconsistent state due to minAmoutOut/minAmountIn constraints, not executing worst case, until the next swap event.
 
 ## Setup and Usage
 Requirements:
