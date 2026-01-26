@@ -14,6 +14,7 @@ from state.flashblocks import FlashblockBuffer
 from infra.monitoring import TelegramBot, append_row_to_csv
 from config import (
     TOKEN1_DECIMALS,
+    BINANCE_FEE,
 )
 
 
@@ -221,37 +222,32 @@ class Executor:
     @staticmethod
     def calculate_pnl(response_binance: dict, receipt_uniswap: TxReceipt) -> Decimal:
         """Returns PnL in USDC"""
-        fill_price, qty, com = Executor._acc_fills(response_binance["fills"])
+        fill_price, qty = Executor._acc_fills(response_binance["fills"])
         notional_price = fill_price * qty
+        b_fee = notional_price * BINANCE_FEE
         transfer_out_amount = Executor._get_transfer_amount(receipt_uniswap)
         u_fee_in_eth = Executor._get_transaction_costs(receipt_uniswap)
         if response_binance["side"] == "SELL":
             sell = notional_price
-            b_fee = com
             buy = transfer_out_amount
         else:  # Binance Side == "BUY":
             sell = transfer_out_amount
-            b_fee = com * fill_price
             buy = notional_price
         u_fee = u_fee_in_eth * fill_price
         total_fees = b_fee + u_fee
-        pnl = sell - (buy + total_fees)
-        return pnl
+        return sell - (buy + total_fees)
 
     @staticmethod
     def _acc_fills(fills: dict) -> tuple[Decimal, Decimal, Decimal]:
         total_notional = Decimal("0")
         total_qty = Decimal("0")
-        total_commission = Decimal("0")
         for fill in fills:
             price = Decimal(fill["price"])
             qty = Decimal(fill["qty"])
-            commission = Decimal(fill["commission"])
             total_notional += price * qty
             total_qty += qty
-            total_commission += commission
-        avg_price = total_notional / total_qty if total_qty else Decimal("0")
-        return avg_price, total_qty, total_commission
+        avg_price = total_notional / total_qty
+        return avg_price, total_qty
 
     @staticmethod
     def _get_transfer_amount(tx_receipt: TxReceipt) -> Decimal:
