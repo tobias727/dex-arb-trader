@@ -224,7 +224,7 @@ class Executor:
         """Returns PnL in USDC"""
         fill_price, qty = Executor._acc_fills(response_binance["fills"])
         notional_price = fill_price * qty
-        b_fee = notional_price * BINANCE_FEE
+        b_fee = notional_price * Decimal(BINANCE_FEE)
         transfer_out_amount = Executor._get_transfer_amount(receipt_uniswap)
         u_fee_in_eth = Executor._get_transaction_costs(receipt_uniswap)
         if response_binance["side"] == "SELL":
